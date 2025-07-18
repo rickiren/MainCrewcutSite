@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Electron window dragging regions */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Ensure all interactive elements in drag regions are clickable */
+.drag-region button,
+.drag-region input,
+.drag-region select,
+.drag-region textarea,
+.drag-region a,
+.drag-region [role="button"],
+.drag-region [tabindex] {
+  -webkit-app-region: no-drag;
+}
