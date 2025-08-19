@@ -9,9 +9,13 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "health": "tsx src/linkedin/health.ts"
+    "login": "tsx src/linkedin/login.ts",
+    "health": "tsx src/linkedin/health.ts",
+    "discover": "tsx src/runner/discover.once.ts",
+    "engage": "tsx src/runner/engage.once.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.60.0",
     "@hookform/resolvers": "^3.9.0",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",

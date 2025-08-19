@@ -1,9 +1,11 @@
 import 'dotenv/config';
 import { getAuthedPage } from './login';
+import { STORAGE_FILE } from './constants';
 
 async function checkLinkedInHealth(): Promise<void> {
   try {
     console.log('🔍 Checking LinkedIn session health...');
+    console.log(`📁 Looking for session file at: ${STORAGE_FILE}`);
     
     // Get authenticated page
     const page = await getAuthedPage();
@@ -71,15 +73,6 @@ async function checkLinkedInHealth(): Promise<void> {
   } catch (error) {
     console.error('❌ Not authenticated. Re-run the login script.');
     console.error('Error details:', error instanceof Error ? error.message : error);
-    
-    // Close browser if it exists
-    try {
-      const page = await getAuthedPage();
-      await page.context().browser()?.close();
-    } catch {
-      // Browser already closed or not available
-    }
-    
     process.exit(1);
   }
 }

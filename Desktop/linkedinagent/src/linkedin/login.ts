@@ -1,24 +1,37 @@
 import 'dotenv/config';
 import { chromium, type Browser, type Page, type BrowserContext } from 'playwright';
 import { writeFileSync, existsSync } from 'fs';
-import { join } from 'path';
-
-const STORAGE_FILE = 'storageState.json';
+import { STORAGE_FILE } from './constants';
 
 /**
  * Main login function that authenticates with LinkedIn and saves session
  */
 async function loginToLinkedIn(): Promise<void> {
-  const browser = await chromium.launch({ 
-    headless: false,
-    slowMo: 1000 // 1 second delay between actions for human-like behavior
-  });
-
+  let browser;
+  
   try {
+    console.log('🚀 Launching Chromium browser...');
+    browser = await chromium.launch({ 
+      headless: false,
+      slowMo: 1000, // 1 second delay between actions for human-like behavior
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu'
+      ]
+    });
+    
+    console.log('✅ Browser launched successfully');
+    
     const context = await browser.newContext();
     const page = await context.newPage();
 
     console.log('🌐 Navigating to LinkedIn login page...');
+    await page.waitForTimeout(1000); // Give browser time to fully initialize
     await page.goto('https://www.linkedin.com/login');
 
     // Wait for the login form to be visible
@@ -42,16 +55,23 @@ async function loginToLinkedIn(): Promise<void> {
     // Submit the form
     console.log('📤 Submitting login form...');
     await page.click('button[type="submit"]');
-
-    // Wait for navigation to feed page
+    
+    // Wait for navigation to complete
     console.log('⏳ Waiting for login to complete...');
-    await page.waitForURL('**/feed', { timeout: 30000 });
-
-    console.log('✅ Successfully logged in!');
+    
+    // Check if we're already on feed page
+    const currentUrl = page.url();
+    if (currentUrl.includes('/feed')) {
+      console.log(`✅ Already on feed page: ${currentUrl}`);
+    } else {
+      // Wait for navigation to feed page
+      await page.waitForURL('**/feed', { timeout: 30000 });
+      console.log(`✅ Navigated to feed page: ${page.url()}`);
+    }
 
     // Save session state (cookies and local storage)
     await context.storageState({ path: STORAGE_FILE });
-    console.log('💾 Session saved to storageState.json');
+    console.log(`💾 Session saved to: ${STORAGE_FILE}`);
 
     console.log('✅ LinkedIn session saved');
 
@@ -77,12 +97,13 @@ export async function getAuthedPage(): Promise<Page> {
 
   // Check if we have a saved session
   if (existsSync(STORAGE_FILE)) {
-    console.log('🔄 Reusing saved session...');
+    console.log(`🔄 Reusing saved session from: ${STORAGE_FILE}`);
     context = await browser.newContext({ 
       storageState: STORAGE_FILE 
     });
   } else {
-    console.log('🔑 No saved session found. Please run login first.');
+    console.log(`🔑 No saved session found at: ${STORAGE_FILE}`);
+    console.log('🔑 Please run login first.');
     throw new Error('No saved session found. Run loginToLinkedIn() first.');
   }
 
@@ -91,7 +112,16 @@ export async function getAuthedPage(): Promise<Page> {
   // Verify the session is still valid by checking if we're logged in
   try {
     await page.goto('https://www.linkedin.com/feed');
-    await page.waitForSelector('[data-test-id="feed-identity-module"]', { timeout: 10000 });
+    
+    // Wait for any of several indicators that we're logged in
+    await Promise.race([
+      page.waitForSelector('[data-test-id="feed-identity-module"]', { timeout: 5000 }),
+      page.waitForSelector('nav[aria-label="Primary"]', { timeout: 5000 }),
+      page.waitForSelector('a[href*="/in/"]', { timeout: 5000 }),
+      page.waitForSelector('button[aria-label*="Start a post"]', { timeout: 5000 }),
+      page.waitForSelector('[class*="feed"]', { timeout: 5000 })
+    ]);
+    
     console.log('✅ Session is valid');
   } catch (error) {
     console.log('❌ Session expired, please login again');
@@ -119,7 +149,15 @@ export async function isAuthenticated(): Promise<boolean> {
     const page = await context.newPage();
     
     await page.goto('https://www.linkedin.com/feed');
-    await page.waitForSelector('[data-test-id="feed-identity-module"]', { timeout: 5000 });
+    
+    // Wait for any of several indicators that we're logged in
+    await Promise.race([
+      page.waitForSelector('[data-test-id="feed-identity-module"]', { timeout: 5000 }),
+      page.waitForSelector('nav[aria-label="Primary"]', { timeout: 5000 }),
+      page.waitForSelector('a[href*="/in/"]', { timeout: 5000 }),
+      page.waitForSelector('button[aria-label*="Start a post"]', { timeout: 5000 }),
+      page.waitForSelector('[class*="feed"]', { timeout: 5000 })
+    ]);
     
     return true;
   } catch (error) {

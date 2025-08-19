@@ -11,11 +11,12 @@ const Terminal = () => {
   useEffect(() => {
     const lines = [
       { text: "$ ", delay: 500 },
-      { text: "create-game Make a space shooter with neon graphics", delay: 100, finalDelay: 800 },
-      { text: "\n✨ Generating game assets...", delay: 50, finalDelay: 500 },
-      { text: "\nCreating game logic...", delay: 50, finalDelay: 500 },
-      { text: "\nOptimizing for web...", delay: 50, finalDelay: 700 },
-      { text: "\n🎮 Game ready! Play now or customize further.", delay: 50, finalDelay: 0 }
+      { text: "create-campaign Connect with mid-sized businesses exploring AI solutions", delay: 100, finalDelay: 800 },
+      { text: " 🚀", delay: 50, finalDelay: 0 },
+      { text: "\nFinding fresh posts...", delay: 50, finalDelay: 500 },
+      { text: "\nCollecting decision-makers...", delay: 50, finalDelay: 500 },
+      { text: "\nDrafting smart replies...", delay: 50, finalDelay: 700 },
+      { text: "\n✅ Campaign ready! Review drafts or customize further.", delay: 50, finalDelay: 0 }
     ];
 
     let currentText = '';
@@ -71,7 +72,7 @@ const Terminal = () => {
         <div className="terminal-button close-button"></div>
         <div className="terminal-button minimize-button"></div>
         <div className="terminal-button maximize-button"></div>
-        <div className="ml-auto text-xs text-gray-400">engine-arcade-terminal</div>
+        <div className="ml-auto text-xs text-gray-400">engage-engine-terminal</div>
       </div>
       <div 
         ref={terminalRef}

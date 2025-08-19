@@ -1,69 +1,297 @@
-# Welcome to your Lovable project
+# ENGAGE ENGINE - LinkedIn Agent Dashboard
 
-## Project info
+A comprehensive admin dashboard for managing your LinkedIn automation and outreach campaigns. Built with React, TypeScript, and shadcn/ui components.
 
-**URL**: https://lovable.dev/projects/84322c50-98b7-4990-ba4e-2545accf5d91
+## Features
 
-## How can I edit this code?
+### 🎯 **Dashboard Overview**
+- Real-time budget tracking (Comments, Connects, DMs, Replies, Likes)
+- Health status monitoring with captcha detection
+- Live activity feed with status indicators
+- Pause/Resume controls with DRY RUN mode
 
-There are several ways of editing your application.
+### 📊 **Posts Management**
+- Discover and filter posts by niche, score, and engagement
+- Generate comment and DM drafts automatically
+- Post scoring and filtering system
+- Company and author insights
 
-**Use Lovable**
+### ⏰ **Queue Management**
+- Monitor pending tasks (Comments, DMs, Replies)
+- Real-time status tracking
+- Reference link management
+- Payload preview and editing
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/84322c50-98b7-4990-ba4e-2545accf5d91) and start prompting.
+### ✍️ **Drafts Management**
+- Organize drafts by type (Comments, Outreach, Replies)
+- Copy drafts to clipboard
+- Bulk clear operations
+- Intent classification and confidence scoring
 
-Changes made via Lovable will be committed automatically to this repo.
+### 📥 **Inbox Monitoring**
+- Read-only thread management
+- Unread message tracking
+- Thread link organization
 
-**Use your preferred IDE**
+### ⚙️ **Settings & Configuration**
+- Niche management with chip-based selection
+- JSON configuration editor
+- Import/Export functionality
+- Timezone awareness
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### 📝 **Logs & Monitoring**
+- Real-time log streaming
+- Level-based filtering (INFO, ERROR)
+- Failure screenshot links
+- Activity timeline
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Tech Stack
 
-Follow these steps:
+- **Frontend**: React 18 + TypeScript
+- **UI Components**: shadcn/ui + Tailwind CSS
+- **State Management**: React Hooks + Context
+- **Routing**: React Router v6
+- **Icons**: Lucide React
+- **Build Tool**: Vite
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## Prerequisites
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+- Node.js 18+ 
+- npm or yarn
+- Modern web browser
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Installation
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd linkedinagent
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   # or
+   yarn install
+   ```
+
+3. **Start the development server**
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   ```
+
+4. **Open your browser**
+   Navigate to `http://localhost:5173`
+
+## Project Structure
+
+```
+src/
+├── components/          # Reusable UI components
+│   ├── ui/             # shadcn/ui components
+│   ├── Header.tsx      # Main site header with navigation
+│   ├── Terminal.tsx    # Animated terminal component
+│   ├── EmailForm.tsx   # Email collection form
+│   └── FeatureCard.tsx # Feature showcase cards
+├── pages/              # Page components
+│   ├── Index.tsx       # Landing page
+│   ├── Dashboard.tsx   # Main admin dashboard
+│   └── ...             # Other pages
+├── lib/                # Utility libraries
+│   ├── api-client.ts   # API client with caching
+│   └── utils.ts        # Helper functions
+├── hooks/              # Custom React hooks
+└── config/             # Configuration files
 ```
 
-**Edit a file directly in GitHub**
+## API Endpoints
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+The dashboard expects the following API endpoints:
 
-**Use GitHub Codespaces**
+### Health & Status
+- `GET /api/health` - System health check
+- `GET /api/counters` - Usage counters and metrics
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Content Management
+- `GET /api/posts?since=48h&niche=*` - Discover posts
+- `GET /api/queue?kind=COMMENT|DM|REPLY&niche=*` - Queue status
 
-## What technologies are used for this project?
+### Drafts
+- `GET /api/drafts/comments` - Comment drafts
+- `GET /api/drafts/outreach` - Outreach drafts  
+- `GET /api/drafts/replies` - Reply drafts
+- `POST /api/drafts/clear {kind}` - Clear drafts
 
-This project is built with .
+### Settings
+- `GET /api/settings/niche` - Get niche configuration
+- `PUT /api/settings/niche` - Update niche settings
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Control
+- `POST /api/pause` - Pause automation
+- `POST /api/resume` - Resume automation
 
-## How can I deploy this project?
+## Configuration
 
-Simply open [Lovable](https://lovable.dev/projects/84322c50-98b7-4990-ba4e-2545accf5d91) and click on Share -> Publish.
+### Environment Variables
 
-## I want to use a custom domain - is that possible?
+Create a `.env.local` file in the root directory:
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+```env
+# API Configuration
+VITE_API_BASE_URL=http://localhost:3000/api
+
+# Authentication (if needed)
+VITE_ADMIN_USER=admin
+VITE_ADMIN_PASS=password
+
+# Feature Flags
+VITE_DRY_RUN=true
+VITE_ENABLE_WEBSOCKET=false
+```
+
+### Niche Configuration
+
+Configure your target niches in the Settings tab:
+
+```json
+{
+  "niches": [
+    {
+      "name": "AI",
+      "keywords": ["artificial intelligence", "machine learning", "AI"],
+      "minScore": 7.0,
+      "enabled": true
+    },
+    {
+      "name": "Automation",
+      "keywords": ["automation", "workflow", "efficiency"],
+      "minScore": 6.5,
+      "enabled": true
+    }
+  ]
+}
+```
+
+## Usage
+
+### 1. **Dashboard Overview**
+- Monitor your daily engagement budgets
+- Check system health and captcha status
+- Review recent activity and actions
+
+### 2. **Post Discovery**
+- Browse posts by niche and engagement score
+- Generate comment and DM drafts
+- Filter by company, author, or content
+
+### 3. **Queue Management**
+- Monitor pending automation tasks
+- Track execution status and timing
+- Review payloads before execution
+
+### 4. **Draft Management**
+- Organize and review generated content
+- Copy drafts to clipboard for manual review
+- Clear old or unwanted drafts
+
+### 5. **Settings & Configuration**
+- Manage target niches and keywords
+- Configure engagement limits and timing
+- Export/import configuration
+
+## Development
+
+### Adding New Features
+
+1. **Create new components** in `src/components/`
+2. **Add new pages** in `src/pages/`
+3. **Update routing** in `src/App.tsx`
+4. **Add API endpoints** in `src/lib/api-client.ts`
+
+### Styling
+
+- Use Tailwind CSS classes for styling
+- Follow shadcn/ui component patterns
+- Maintain consistent spacing and typography
+
+### State Management
+
+- Use React hooks for local state
+- Consider Context API for global state
+- Implement proper error boundaries
+
+## Deployment
+
+### Build for Production
+
+```bash
+npm run build
+# or
+yarn build
+```
+
+### Deploy to Vercel
+
+```bash
+npm install -g vercel
+vercel --prod
+```
+
+### Deploy to Netlify
+
+```bash
+npm install -g netlify-cli
+netlify deploy --prod
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **API Connection Errors**
+   - Check API endpoint configuration
+   - Verify CORS settings on backend
+   - Check network connectivity
+
+2. **Component Loading Issues**
+   - Clear browser cache
+   - Check console for JavaScript errors
+   - Verify all dependencies are installed
+
+3. **Styling Issues**
+   - Ensure Tailwind CSS is properly configured
+   - Check for CSS conflicts
+   - Verify shadcn/ui component imports
+
+### Debug Mode
+
+Enable debug logging by setting:
+
+```env
+VITE_DEBUG=true
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+
+For support and questions:
+- Create an issue in the repository
+- Check the documentation
+- Review the troubleshooting section
+
+---
+
+**ENGAGE ENGINE** - Automate your LinkedIn outreach with AI-powered precision.

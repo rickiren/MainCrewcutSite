@@ -1,0 +1,9 @@
+{
+  "name": "multifamily",
+  "filters": {
+    "keywords": ["AI leasing","tenant inbox","Yardi automation","MRI Software","rent roll QA","leasing assistant","property management AI"],
+    "minEmployees": 10,
+    "minRevenueUSD": 1000000
+  },
+  "examples": ["leasing inbox triage","rent-roll anomaly checks","owner report drafts"]
+}
