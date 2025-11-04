@@ -32,8 +32,12 @@ class ClaudeAPIService {
 
   private async makeRequest(requestBody: ClaudeRequest): Promise<any> {
     try {
-      // Call our Vercel function
-      const response = await fetch('/api/claude', {
+      // Try Firebase Function URL first, fallback to Vercel API route
+      const firebaseFunctionUrl = import.meta.env.VITE_FIREBASE_FUNCTION_URL;
+      const apiUrl = firebaseFunctionUrl || '/api/claude';
+      
+      // Call our backend function
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -54,6 +58,10 @@ class ClaudeAPIService {
       return data;
     } catch (error) {
       console.error('Error calling backend:', error);
+      // If API is not available, provide a helpful message
+      if (error instanceof Error && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+        throw new Error('AI chat is currently unavailable. Please contact us directly using the contact form below.');
+      }
       throw error;
     }
   }
