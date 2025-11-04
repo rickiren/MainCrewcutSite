@@ -1,4 +1,5 @@
 import { sendWelcomeEmail, sendNewsletterConfirmation } from './resendService'
+import { saveContactToFirestore } from './firebase'
 
 export interface EmailSubscription {
   email: string
@@ -13,23 +14,34 @@ export interface EmailSubscription {
   budget?: string
   timeline?: string
   decision_maker?: boolean
+  message?: string // For contact form messages
 }
 
 export const subscribeToNewsletter = async (subscription: EmailSubscription) => {
   try {
     console.log('📧 Newsletter subscription received:', subscription)
-    console.log('📧 Contact would be stored in database:', {
-      email: subscription.email,
-      name: `${subscription.first_name || ''} ${subscription.last_name || ''}`.trim(),
-      phone: subscription.phone_number,
-      source: subscription.form_source,
-      company: subscription.company,
-      businessType: subscription.business_type,
-      teamSize: subscription.team_size,
-      budget: subscription.budget,
-      timeline: subscription.timeline,
-      decisionMaker: subscription.decision_maker
-    })
+    
+    // Save contact to Firebase Firestore
+    try {
+      const contactId = await saveContactToFirestore({
+        email: subscription.email,
+        first_name: subscription.first_name,
+        last_name: subscription.last_name,
+        phone_number: subscription.phone_number,
+        form_source: subscription.form_source,
+        company: subscription.company,
+        business_type: subscription.business_type,
+        team_size: subscription.team_size,
+        budget: subscription.budget,
+        timeline: subscription.timeline,
+        decision_maker: subscription.decision_maker,
+        message: subscription.message
+      });
+      console.log('✅ Contact saved to Firestore with ID:', contactId);
+    } catch (firestoreError) {
+      console.error('❌ Error saving to Firestore:', firestoreError);
+      // Continue even if Firestore fails - we still want to send the email
+    }
     
     // Try to send welcome email
     try {
