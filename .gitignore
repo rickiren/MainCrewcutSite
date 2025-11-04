@@ -23,9 +23,11 @@ dist-ssr
 *.sln
 *.sw?
 path/to/bigfile
-<<<<<<< Updated upstream
 .env
-.env
-=======
-.env
->>>>>>> Stashed changes
+
+# Firebase
+.firebase
+.firebaserc.local
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
