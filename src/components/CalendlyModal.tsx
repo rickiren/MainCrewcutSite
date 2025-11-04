@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useRef } from "react";
+import { createContactFromCalendly, extractContactFromCalendlyEvent } from "@/services/calendlyService";
 
 interface CalendlyModalProps {
   isOpen: boolean;
@@ -39,8 +40,36 @@ const CalendlyModal = ({ isOpen, onClose }: CalendlyModalProps) => {
       }
 
       // Add event listener for Calendly booking events
-      const handleCalendlyEvent = (e: MessageEvent) => {
-        if (e.data.event && e.data.event.indexOf("calendly.event_scheduled") === 0) {
+      const handleCalendlyEvent = async (e: MessageEvent) => {
+        // Handle different Calendly event types
+        if (e.data.event && (
+          e.data.event.indexOf("calendly.event_scheduled") === 0 ||
+          e.data.event.indexOf("calendly.event_created") === 0 ||
+          e.data.event.indexOf("calendly.invitee.created") === 0
+        )) {
+          console.log('📅 Calendly event detected:', e.data.event, e.data);
+          
+          // Extract contact information from the Calendly event
+          const contact = extractContactFromCalendlyEvent(e.data);
+          
+          if (contact) {
+            try {
+              // Create contact in Supabase
+              const result = await createContactFromCalendly(contact);
+              console.log('✅ Contact created/updated from Calendly:', result);
+              
+              // Show success message to user (optional)
+              if (result.success) {
+                console.log('🎉 Contact successfully saved to database!');
+              }
+            } catch (error) {
+              console.error('❌ Error creating contact from Calendly:', error);
+            }
+          } else {
+            console.warn('⚠️  Could not extract contact info from Calendly event');
+            console.log('🔍 Event data structure:', JSON.stringify(e.data, null, 2));
+          }
+          
           // Fire Meta Pixel event when someone books
           if (window.fbq) {
             window.fbq('track', 'BookedAppointment');

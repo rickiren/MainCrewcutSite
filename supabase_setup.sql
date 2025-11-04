@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS contacts (
     last_name VARCHAR(100),
     phone_number VARCHAR(20),
     form_source VARCHAR(100) NOT NULL,
+    calendly_event_id VARCHAR(255),
+    calendly_event_type VARCHAR(255),
+    calendly_invitee_id VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
