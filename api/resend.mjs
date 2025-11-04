@@ -50,6 +50,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         from: from || 'CREW CUT <onboarding@resend.dev>',
+        reply_to: 'crewcutagency@gmail.com',
         to: Array.isArray(to) ? to : [to],
         subject: subject,
         html: html

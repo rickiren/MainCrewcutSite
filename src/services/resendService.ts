@@ -288,7 +288,7 @@ ${aiSolutions}
           <div class="cta-box">
             <h3>Need Help Implementing?</h3>
             <p>We build custom AI solutions in 14 days. Let's turn these opportunities into reality.</p>
-            <a href="https://calendly.com/your-calendly-link" class="cta-button">Book a Free 15-Min Call</a>
+            <a href="https://calendly.com/rickibodner/30min" class="cta-button">Book a Free 15-Min Call</a>
           </div>
 
           <div class="section">
@@ -313,9 +313,8 @@ ${aiSolutions}
         <div class="footer">
           <p><strong>CREW CUT</strong> - Custom AI & SaaS Solutions</p>
           <div class="footer-links">
-            <a href="https://crewcut.ai">Visit Website</a> |
-            <a href="https://calendly.com/your-link">Book a Call</a> |
-            <a href="mailto:hello@crewcut.ai">Get Help</a>
+            <a href="https://home.crewcut.agency/">Visit Website</a> |
+            <a href="https://calendly.com/rickibodner/30min">Book a Call</a>
           </div>
           <p style="margin-top: 20px; font-size: 12px; color: #999;">
             © ${new Date().getFullYear()} CREW CUT. All rights reserved.
