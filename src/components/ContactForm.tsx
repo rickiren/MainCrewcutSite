@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Send, Mail, User, MessageSquare } from 'lucide-react';
+import { Send, Mail, User, MessageSquare, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,9 @@ import { subscribeToNewsletter } from '@/services/emailSubscription';
 const formSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
+  phone: z.string().optional().refine((val) => !val || /^[\d\s\-\+\(\)]+$/.test(val), {
+    message: 'Please enter a valid phone number'
+  }),
   message: z.string().min(10, 'Message must be at least 10 characters'),
   honeypot: z.string().max(0, 'Bot detected'), // Honeypot field must be empty
   timestamp: z.number() // To prevent automated quick submissions
@@ -34,6 +37,7 @@ const ContactForm = () => {
     defaultValues: {
       name: '',
       email: '',
+      phone: '',
       message: '',
       honeypot: '',
       timestamp: formStartTime
@@ -72,15 +76,16 @@ const ContactForm = () => {
       console.log('Form submitted:', data);
       
       // Remove honeypot and timestamp fields before sending
-      const { honeypot, timestamp, ...contactData } = data;
+      const { honeypot, timestamp, phone, message, ...contactData } = data;
       
       // Store contact information
       const result = await subscribeToNewsletter({
         email: contactData.email,
         first_name: contactData.name.split(' ')[0] || contactData.name,
         last_name: contactData.name.split(' ').slice(1).join(' ') || undefined,
-        form_source: 'contact_form',
-        phone_number: undefined
+        phone_number: phone || undefined,
+        message: message,
+        form_source: 'contact_form'
       });
       
       console.log('Contact stored successfully:', result);
@@ -94,6 +99,7 @@ const ContactForm = () => {
       form.reset({
         name: '',
         email: '',
+        phone: '',
         message: '',
         honeypot: '',
         timestamp: Date.now()
@@ -155,6 +161,19 @@ const ContactForm = () => {
                         <Mail className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
                         <FormControl>
                           <Input type="email" placeholder="your.email@example.com" className="pl-10" {...field} />
+                        </FormControl>
+                      </div>
+                      <FormMessage />
+                    </FormItem>} />
+                
+                <FormField control={form.control} name="phone" render={({
+                field
+              }) => <FormItem>
+                      <FormLabel className="text-gray-700">Phone <span className="text-gray-400 text-sm">(optional)</span></FormLabel>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                        <FormControl>
+                          <Input type="tel" placeholder="(555) 123-4567" className="pl-10" {...field} />
                         </FormControl>
                       </div>
                       <FormMessage />

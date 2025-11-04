@@ -121,7 +121,7 @@ export const sendWelcomeEmail = async (userData: WelcomeEmailData) => {
           <h1>🚀 Welcome to CREW CUT!</h1>
         </div>
         <div class="content">
-          <h2>Hi ${userData.firstName || 'there'}!</h2>
+          <h2>Welcome!</h2>
           <p>Thank you for subscribing to our newsletter! We're excited to have you on board.</p>
           
           <p>At CREW CUT, we build custom AI and SaaS tools that:</p>
@@ -140,7 +140,7 @@ export const sendWelcomeEmail = async (userData: WelcomeEmailData) => {
           </ul>
           
           <div style="text-align: center;">
-            <a href="https://crewcut.ai" class="cta-button">Explore Our Platform</a>
+            <a href="https://calendly.com/rickibodner/30min?month=2025-11" class="cta-button">Work with us</a>
           </div>
           
           <p>If you have any questions or want to discuss how we can help your business, feel free to reach out!</p>
