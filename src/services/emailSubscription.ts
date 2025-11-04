@@ -6,6 +6,13 @@ export interface EmailSubscription {
   first_name?: string
   last_name?: string
   phone_number?: string
+  // Additional lead data from AI chat
+  company?: string
+  business_type?: string
+  team_size?: string
+  budget?: string
+  timeline?: string
+  decision_maker?: boolean
 }
 
 export const subscribeToNewsletter = async (subscription: EmailSubscription) => {
@@ -15,7 +22,13 @@ export const subscribeToNewsletter = async (subscription: EmailSubscription) => 
       email: subscription.email,
       name: `${subscription.first_name || ''} ${subscription.last_name || ''}`.trim(),
       phone: subscription.phone_number,
-      source: subscription.form_source
+      source: subscription.form_source,
+      company: subscription.company,
+      businessType: subscription.business_type,
+      teamSize: subscription.team_size,
+      budget: subscription.budget,
+      timeline: subscription.timeline,
+      decisionMaker: subscription.decision_maker
     })
     
     // Try to send welcome email
