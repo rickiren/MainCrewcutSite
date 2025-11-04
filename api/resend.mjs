@@ -41,6 +41,10 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Resend API key not configured' });
     }
 
+    // Get default from email from environment variable or use provided/default
+    const defaultFromEmail = process.env.RESEND_FROM_EMAIL || process.env.VITE_RESEND_FROM_EMAIL || 'CREW CUT <onboarding@resend.dev>';
+    const fromEmail = from || defaultFromEmail;
+
     // Call Resend API
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -49,7 +53,7 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        from: from || 'CREW CUT <onboarding@resend.dev>',
+        from: fromEmail,
         reply_to: 'crewcutagency@gmail.com',
         to: Array.isArray(to) ? to : [to],
         subject: subject,

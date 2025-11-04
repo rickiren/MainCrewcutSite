@@ -169,6 +169,10 @@ export default defineConfig(({ mode }) => {
                   return;
                 }
 
+                // Get default from email from environment variable
+                const defaultFromEmail = process.env.RESEND_FROM_EMAIL || process.env.VITE_RESEND_FROM_EMAIL || env.VITE_RESEND_FROM_EMAIL || 'CREW CUT <onboarding@resend.dev>';
+                const fromEmail = from || defaultFromEmail;
+
                 // Call Resend API
                 const response = await fetch('https://api.resend.com/emails', {
                   method: 'POST',
@@ -177,7 +181,7 @@ export default defineConfig(({ mode }) => {
                     'Authorization': `Bearer ${apiKey}`
                   },
                   body: JSON.stringify({
-                    from: from || 'CREW CUT <onboarding@resend.dev>',
+                    from: fromEmail,
                     to: Array.isArray(to) ? to : [to],
                     subject: subject,
                     html: html
