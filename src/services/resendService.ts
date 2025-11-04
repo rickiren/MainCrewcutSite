@@ -1,11 +1,3 @@
-import { Resend } from 'resend';
-
-// Initialize Resend with API key only if it exists
-let resend: Resend | null = null;
-if (import.meta.env.VITE_RESEND_API_KEY) {
-  resend = new Resend(import.meta.env.VITE_RESEND_API_KEY);
-}
-
 export interface EmailData {
   to: string;
   subject: string;
@@ -19,55 +11,62 @@ export interface WelcomeEmailData {
   lastName?: string;
 }
 
+// Determine API URL - use relative path for both dev and prod
+const getApiUrl = () => {
+  // In development, use relative path (handled by Vite middleware)
+  // In production, Vercel will handle /api/resend automatically
+  return '/api/resend';
+};
+
 export const sendEmail = async (emailData: EmailData) => {
   try {
-    // Check if we're in mock mode (no API key or resend not initialized)
-    if (!import.meta.env.VITE_RESEND_API_KEY || !resend) {
+    // Check if we're in mock mode (no API key)
+    if (!import.meta.env.VITE_RESEND_API_KEY) {
       console.log('📧 Mock mode: Email would be sent via Resend:', emailData);
       return { success: true, message: 'Email sent successfully (mock mode)' };
     }
 
-    console.log('📧 Attempting to send email via Resend...');
+    console.log('📧 Attempting to send email via Resend API proxy...');
     console.log('📧 From:', emailData.from || 'CREW CUT <onboarding@resend.dev>');
     console.log('📧 To:', emailData.to);
     console.log('📧 Subject:', emailData.subject);
 
-    // Add timeout and better error handling for development
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Request timeout')), 10000); // 10 second timeout
+    const apiUrl = getApiUrl();
+    
+    // Call our backend API endpoint which will proxy to Resend
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        emailData: {
+          to: emailData.to,
+          subject: emailData.subject,
+          html: emailData.html,
+          from: emailData.from || 'CREW CUT <onboarding@resend.dev>',
+        }
+      })
     });
 
-    const emailPromise = resend.emails.send({
-      from: emailData.from || 'CREW CUT <onboarding@resend.dev>',
-      to: [emailData.to],
-      subject: emailData.subject,
-      html: emailData.html,
-    });
-
-    const { data, error } = await Promise.race([emailPromise, timeoutPromise]) as any;
-
-    if (error) {
-      console.error('❌ Resend error details:', {
-        message: error.message,
-        statusCode: (error as any).statusCode,
-        name: error.name
-      });
-      throw error;
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Resend API error: ${response.status} ${response.statusText} - ${errorData.message || errorData.error || 'Unknown error'}`);
     }
 
-    console.log('✅ Email sent successfully via Resend:', data);
-    return { success: true, data, message: 'Email sent successfully' };
+    const result = await response.json();
+    console.log('✅ Email sent successfully via Resend:', result);
+    return { success: true, data: result.data, message: result.message || 'Email sent successfully' };
   } catch (error) {
     console.error('❌ Error sending email:', {
       message: (error as Error).message,
-      statusCode: (error as any)?.statusCode,
       name: (error as Error).name
     });
     
     // In development, if it's a network error, provide helpful info
-    if ((error as Error).message.includes('fetch') || (error as Error).message.includes('network')) {
-      console.warn('⚠️  Network error detected. This is common in development environments.');
-      console.warn('💡 Try refreshing the page or check your network connection.');
+    if ((error as Error).message.includes('fetch') || (error as Error).message.includes('network') || (error as Error).message.includes('CORS')) {
+      console.warn('⚠️  Network/CORS error detected.');
+      console.warn('💡 Make sure the API endpoint is properly configured.');
       console.warn('💡 The subscription was successful - only the welcome email failed.');
     }
     
