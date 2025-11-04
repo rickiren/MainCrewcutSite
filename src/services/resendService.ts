@@ -180,3 +180,156 @@ export const sendNewsletterConfirmation = async (email: string) => {
     html: confirmationHtml,
   });
 };
+
+export interface AIImplementationGuideData {
+  email: string;
+  firstName?: string;
+  businessType?: string;
+  aiSolutions?: string; // The 3 AI solutions we showed them
+}
+
+export const sendAIImplementationGuide = async (data: AIImplementationGuideData) => {
+  const { email, firstName, businessType, aiSolutions } = data;
+
+  const guideHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Your AI Implementation Guide</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 28px; font-weight: 700; }
+        .header p { margin: 10px 0 0; font-size: 16px; opacity: 0.9; }
+        .content { padding: 40px 30px; }
+        .greeting { font-size: 18px; color: #333; margin-bottom: 20px; }
+        .intro { font-size: 16px; color: #555; margin-bottom: 30px; line-height: 1.8; }
+        .section { margin-bottom: 30px; }
+        .section-title { font-size: 20px; font-weight: 600; color: #667eea; margin-bottom: 15px; display: flex; align-items: center; }
+        .section-title span { margin-right: 8px; }
+        .solution-box { background: #f8f9ff; border-left: 4px solid #667eea; padding: 20px; margin-bottom: 20px; border-radius: 4px; }
+        .solution-title { font-weight: 600; font-size: 18px; color: #333; margin-bottom: 10px; }
+        .solution-description { color: #555; margin-bottom: 15px; line-height: 1.7; }
+        .solution-steps { color: #555; line-height: 1.8; }
+        .solution-steps li { margin-bottom: 8px; }
+        .cta-box { background: #667eea; color: white; padding: 30px; text-align: center; border-radius: 8px; margin: 30px 0; }
+        .cta-box h3 { margin: 0 0 15px; font-size: 22px; }
+        .cta-box p { margin: 0 0 20px; font-size: 16px; opacity: 0.95; }
+        .cta-button { display: inline-block; background: white; color: #667eea; padding: 15px 40px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px; }
+        .cta-button:hover { background: #f0f0f0; }
+        .tips { background: #fffbf0; border: 1px solid #ffe066; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .tips-title { font-weight: 600; color: #d97706; margin-bottom: 10px; display: flex; align-items: center; }
+        .tips-title span { margin-right: 8px; }
+        .tips ul { margin: 10px 0 0; padding-left: 20px; }
+        .tips li { margin-bottom: 8px; color: #555; }
+        .footer { background: #f9f9f9; padding: 30px; text-align: center; color: #666; font-size: 14px; }
+        .footer-links { margin: 15px 0; }
+        .footer-links a { color: #667eea; text-decoration: none; margin: 0 10px; }
+        .money-stat { background: #f0fdf4; border: 2px solid #86efac; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+        .money-stat-big { font-size: 32px; font-weight: 700; color: #16a34a; margin-bottom: 5px; }
+        .money-stat-label { font-size: 14px; color: #15803d; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>💰 Your AI Implementation Guide</h1>
+          <p>Turn these AI opportunities into real revenue</p>
+        </div>
+
+        <div class="content">
+          <div class="greeting">
+            Hi ${firstName || 'there'}! 👋
+          </div>
+
+          <div class="intro">
+            Thanks for chatting with our AI consultant! Based on your ${businessType || 'business'}, we've prepared a detailed implementation guide to help you start making money with AI <strong>today</strong>.
+          </div>
+
+          ${aiSolutions ? `
+          <div class="section">
+            <div class="section-title"><span>🎯</span>Your Personalized AI Solutions</div>
+            <div style="background: #f8f9ff; padding: 20px; border-radius: 8px; white-space: pre-line; line-height: 1.8; color: #333;">
+${aiSolutions}
+            </div>
+          </div>
+          ` : ''}
+
+          <div class="money-stat">
+            <div class="money-stat-big">$50K+/year</div>
+            <div class="money-stat-label">Average revenue increase from implementing these AI solutions</div>
+          </div>
+
+          <div class="section">
+            <div class="section-title"><span>🚀</span>Quick Start: Your Next Steps</div>
+            <div class="solution-steps">
+              <ol>
+                <li><strong>Pick ONE solution to start with</strong> - Don't try to implement everything at once. Choose the one with the biggest impact for your business.</li>
+                <li><strong>Set up the tools</strong> - Most AI tools have free trials. Start experimenting without any financial commitment.</li>
+                <li><strong>Build a simple prototype</strong> - Get something working in 1-2 days, even if it's basic.</li>
+                <li><strong>Measure the results</strong> - Track time saved or revenue generated to prove ROI.</li>
+                <li><strong>Scale what works</strong> - Once you see results, invest more resources to maximize the impact.</li>
+              </ol>
+            </div>
+          </div>
+
+          <div class="tips">
+            <div class="tips-title"><span>💡</span>Pro Tips for Success</div>
+            <ul>
+              <li><strong>Start small:</strong> Pick the lowest-hanging fruit first to build momentum</li>
+              <li><strong>Use free tiers:</strong> ChatGPT, Claude, Make.com all have free plans - test before you commit</li>
+              <li><strong>Track everything:</strong> Measure time saved and money made to justify further investment</li>
+              <li><strong>Get help:</strong> Don't hesitate to reach out if you get stuck - we're here to help</li>
+            </ul>
+          </div>
+
+          <div class="cta-box">
+            <h3>Need Help Implementing?</h3>
+            <p>We build custom AI solutions in 14 days. Let's turn these opportunities into reality.</p>
+            <a href="https://calendly.com/your-calendly-link" class="cta-button">Book a Free 15-Min Call</a>
+          </div>
+
+          <div class="section">
+            <div class="section-title"><span>🛠️</span>Recommended Tools to Get Started</div>
+            <div class="solution-steps">
+              <ul>
+                <li><strong>ChatGPT (OpenAI):</strong> Best for content creation, customer support, data analysis</li>
+                <li><strong>Claude (Anthropic):</strong> Excellent for complex reasoning, writing, and analysis</li>
+                <li><strong>Make.com:</strong> Automation platform to connect AI with your existing tools</li>
+                <li><strong>Zapier:</strong> Alternative automation platform with 5,000+ integrations</li>
+                <li><strong>Notion AI:</strong> Great for document automation and knowledge management</li>
+              </ul>
+            </div>
+          </div>
+
+          <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #f0f0f0;">
+            <p style="font-size: 16px; color: #333;">Questions? Just reply to this email - I read every response.</p>
+            <p style="font-size: 16px; color: #333;">Best,<br><strong>The CREW CUT Team</strong></p>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p><strong>CREW CUT</strong> - Custom AI & SaaS Solutions</p>
+          <div class="footer-links">
+            <a href="https://crewcut.ai">Visit Website</a> |
+            <a href="https://calendly.com/your-link">Book a Call</a> |
+            <a href="mailto:hello@crewcut.ai">Get Help</a>
+          </div>
+          <p style="margin-top: 20px; font-size: 12px; color: #999;">
+            © ${new Date().getFullYear()} CREW CUT. All rights reserved.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `💰 Your AI Implementation Guide${businessType ? ' for ' + businessType : ''} - Start Making Money Today`,
+    html: guideHtml,
+  });
+};
