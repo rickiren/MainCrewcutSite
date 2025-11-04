@@ -18,6 +18,16 @@ const getApiUrl = () => {
   return '/api/resend';
 };
 
+// Get the default from email address
+const getDefaultFromEmail = () => {
+  // Check for custom from email in environment variable
+  if (import.meta.env.VITE_RESEND_FROM_EMAIL) {
+    return import.meta.env.VITE_RESEND_FROM_EMAIL;
+  }
+  // Default to onboarding@resend.dev for testing (limited to account owner's email)
+  return 'CREW CUT <onboarding@resend.dev>';
+};
+
 export const sendEmail = async (emailData: EmailData) => {
   try {
     // Check if we're in mock mode (no API key)
@@ -26,8 +36,10 @@ export const sendEmail = async (emailData: EmailData) => {
       return { success: true, message: 'Email sent successfully (mock mode)' };
     }
 
+    const fromEmail = emailData.from || getDefaultFromEmail();
+    
     console.log('📧 Attempting to send email via Resend API proxy...');
-    console.log('📧 From:', emailData.from || 'CREW CUT <onboarding@resend.dev>');
+    console.log('📧 From:', fromEmail);
     console.log('📧 To:', emailData.to);
     console.log('📧 Subject:', emailData.subject);
 
@@ -44,14 +56,26 @@ export const sendEmail = async (emailData: EmailData) => {
           to: emailData.to,
           subject: emailData.subject,
           html: emailData.html,
-          from: emailData.from || 'CREW CUT <onboarding@resend.dev>',
+          from: fromEmail,
         }
       })
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(`Resend API error: ${response.status} ${response.statusText} - ${errorData.message || errorData.error || 'Unknown error'}`);
+      const errorMessage = errorData.message || errorData.error || 'Unknown error';
+      
+      // Provide helpful error message for domain verification issues
+      if (errorMessage.includes('verify a domain') || errorMessage.includes('testing emails')) {
+        console.warn('⚠️  Resend Domain Verification Required:');
+        console.warn('💡 To send emails to other recipients, you need to:');
+        console.warn('   1. Verify your domain at https://resend.com/domains');
+        console.warn('   2. Set VITE_RESEND_FROM_EMAIL in your .env file to use your verified domain');
+        console.warn('   3. Example: VITE_RESEND_FROM_EMAIL="CREW CUT <hello@yourdomain.com>"');
+        console.warn('💡 For now, you can only send to your own verified email address.');
+      }
+      
+      throw new Error(`Resend API error: ${response.status} ${response.statusText} - ${errorMessage}`);
     }
 
     const result = await response.json();
