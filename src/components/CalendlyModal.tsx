@@ -54,7 +54,7 @@ const CalendlyModal = ({ isOpen, onClose }: CalendlyModalProps) => {
           
           if (contact) {
             try {
-              // Create contact in Supabase
+              // Create contact from Calendly booking
               const result = await createContactFromCalendly(contact);
               console.log('✅ Contact created/updated from Calendly:', result);
               

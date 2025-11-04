@@ -1,7 +1,10 @@
 import { Resend } from 'resend';
 
-// Initialize Resend with API key
-const resend = new Resend(import.meta.env.VITE_RESEND_API_KEY);
+// Initialize Resend with API key only if it exists
+let resend: Resend | null = null;
+if (import.meta.env.VITE_RESEND_API_KEY) {
+  resend = new Resend(import.meta.env.VITE_RESEND_API_KEY);
+}
 
 export interface EmailData {
   to: string;
@@ -18,8 +21,8 @@ export interface WelcomeEmailData {
 
 export const sendEmail = async (emailData: EmailData) => {
   try {
-    // Check if we're in mock mode (no API key)
-    if (!import.meta.env.VITE_RESEND_API_KEY) {
+    // Check if we're in mock mode (no API key or resend not initialized)
+    if (!import.meta.env.VITE_RESEND_API_KEY || !resend) {
       console.log('📧 Mock mode: Email would be sent via Resend:', emailData);
       return { success: true, message: 'Email sent successfully (mock mode)' };
     }

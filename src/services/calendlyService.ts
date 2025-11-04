@@ -1,5 +1,3 @@
-import { supabase } from '@/lib/supabase'
-
 export interface CalendlyContact {
   email: string
   first_name?: string
@@ -13,56 +11,23 @@ export interface CalendlyContact {
 
 export const createContactFromCalendly = async (contact: CalendlyContact) => {
   try {
-    // Check if we're using the mock client (local development without env vars)
-    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-      console.log('📧 Mock mode: Calendly contact would be stored in Supabase:', contact)
-      return { success: true, data: null, message: 'Contact would be stored (mock mode)' }
-    }
-
-    console.log('🔌 Connecting to Supabase...')
-    console.log('📧 Inserting Calendly contact:', contact)
-
-    const { data, error } = await supabase
-      .from('contacts')
-      .insert([contact])
-      .select()
-
-    if (error) {
-      console.log('⚠️  Supabase error:', error)
-      // If it's a duplicate email error, we can handle it gracefully
-      if (error.code === '23505') { // Unique constraint violation
-        console.log('📧 Email already exists, updating contact info...')
-        // Update existing contact with new Calendly info
-        const { data: updateData, error: updateError } = await supabase
-          .from('contacts')
-          .update({
-            first_name: contact.first_name,
-            last_name: contact.last_name,
-            phone_number: contact.phone_number,
-            form_source: contact.form_source,
-            calendly_event_id: contact.calendly_event_id,
-            calendly_event_type: contact.calendly_event_type,
-            calendly_invitee_id: contact.calendly_invitee_id,
-            updated_at: new Date().toISOString()
-          })
-          .eq('email', contact.email)
-          .select()
-
-        if (updateError) {
-          console.error('❌ Error updating existing contact:', updateError)
-          throw updateError
-        }
-
-        console.log('✅ Existing contact updated with Calendly info:', updateData)
-        return { success: true, data: updateData, message: 'Contact updated with Calendly info' }
+    // Log contact information for local development
+    console.log('📧 Calendly contact received:', contact)
+    console.log('📧 Contact would be stored in database:', {
+      email: contact.email,
+      name: `${contact.first_name || ''} ${contact.last_name || ''}`.trim(),
+      phone: contact.phone_number,
+      source: contact.form_source,
+      calendly: {
+        eventId: contact.calendly_event_id,
+        eventType: contact.calendly_event_type,
+        inviteeId: contact.calendly_invitee_id
       }
-      throw error
-    }
-
-    console.log('✅ Calendly contact successfully stored in Supabase:', data)
-    return { success: true, data, message: 'Contact created successfully' }
+    })
+    
+    return { success: true, data: contact, message: 'Contact logged successfully' }
   } catch (error) {
-    console.error('❌ Error creating Calendly contact:', error)
+    console.error('❌ Error processing Calendly contact:', error)
     throw error
   }
 }

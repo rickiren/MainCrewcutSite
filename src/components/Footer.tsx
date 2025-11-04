@@ -27,14 +27,14 @@ const Footer = () => {
     setIsSubmitting(true);
     
     try {
-      console.log('📧 Submitting email to Supabase:', email);
+      console.log('📧 Submitting email subscription:', email);
       
       const result = await subscribeToNewsletter({
         email,
         form_source: 'footer_newsletter'
       });
       
-      console.log('✅ Supabase response:', result);
+      console.log('✅ Subscription response:', result);
       
       toast({
         title: "Success!",

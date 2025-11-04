@@ -41,7 +41,7 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
     setIsSendingEmail(true);
     
     try {
-      // Store contact information in Supabase
+      // Store contact information
       const result = await subscribeToNewsletter({
         email,
         form_source: 'ai_chat',

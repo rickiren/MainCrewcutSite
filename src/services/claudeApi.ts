@@ -32,9 +32,14 @@ class ClaudeAPIService {
 
   private async makeRequest(requestBody: ClaudeRequest): Promise<any> {
     try {
-      // Try Firebase Function URL first, fallback to Vercel API route
+      // In development, use local API route. In production, try Firebase Function URL first, then fallback to Vercel API route
+      const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
       const firebaseFunctionUrl = import.meta.env.VITE_FIREBASE_FUNCTION_URL;
-      const apiUrl = firebaseFunctionUrl || '/api/claude';
+      
+      // Prioritize local API route in development, Firebase URL in production
+      const apiUrl = isDevelopment ? '/api/claude' : (firebaseFunctionUrl || '/api/claude');
+      
+      console.log('🔌 Calling Claude API at:', apiUrl);
       
       // Call our backend function
       const response = await fetch(apiUrl, {

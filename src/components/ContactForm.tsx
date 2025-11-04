@@ -74,7 +74,7 @@ const ContactForm = () => {
       // Remove honeypot and timestamp fields before sending
       const { honeypot, timestamp, ...contactData } = data;
       
-      // Store contact information in Supabase
+      // Store contact information
       const result = await subscribeToNewsletter({
         email: contactData.email,
         first_name: contactData.name.split(' ')[0] || contactData.name,
