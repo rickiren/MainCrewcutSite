@@ -3,6 +3,7 @@ import { Send, MessageSquare, X, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { claudeAPI, ClaudeMessage } from '@/services/claudeApi';
 import { subscribeToNewsletter } from '@/services/emailSubscription';
+import { sendAIImplementationGuide } from '@/services/resendService';
 
 interface Message {
   id: string;
@@ -42,6 +43,7 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
   const [conversationStage, setConversationStage] = useState<ConversationStage>('initial');
   const [leadData, setLeadData] = useState<LeadData>({});
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [aiSolutionsText, setAiSolutionsText] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ============================================================================
@@ -120,10 +122,12 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
     return null;
   };
 
-  // Send PDF report email and store contact with all collected lead data
-  const sendPDFReport = async () => {
-    if (!leadData.email) {
-      console.error('Cannot send PDF report: email not collected');
+  // Send AI implementation guide email and store contact with all collected lead data
+  const sendPDFReport = async (emailToUse?: string) => {
+    const email = emailToUse || leadData.email;
+
+    if (!email) {
+      console.error('Cannot send PDF report: email not provided');
       return;
     }
 
@@ -131,8 +135,8 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
 
     try {
       // Store contact information with all collected lead data
-      const result = await subscribeToNewsletter({
-        email: leadData.email,
+      const subscriptionResult = await subscribeToNewsletter({
+        email: email,
         form_source: 'ai_chat',
         first_name: leadData.firstName,
         last_name: leadData.lastName,
@@ -146,12 +150,25 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
         decision_maker: leadData.decisionMaker
       });
 
-      console.log('Contact stored successfully:', result);
-      console.log('Lead data collected:', leadData);
+      console.log('Contact stored successfully:', subscriptionResult);
+      console.log('Lead data collected:', { ...leadData, email });
+
+      // Send the AI implementation guide email
+      try {
+        await sendAIImplementationGuide({
+          email: email,
+          firstName: leadData.firstName,
+          businessType: leadData.businessType,
+          aiSolutions: aiSolutionsText
+        });
+        console.log('✅ AI implementation guide sent successfully to', email);
+      } catch (emailError) {
+        console.error('❌ Error sending AI implementation guide:', emailError);
+        // Don't fail the whole flow if email fails - just log it
+      }
 
       // Personalized success message
-      const firstName = leadData.firstName || 'there';
-      let successContent = `Perfect${leadData.firstName ? ', ' + leadData.firstName : ''}! I've sent your personalized AI implementation guide to ${leadData.email}. You should receive it in the next few minutes.`;
+      let successContent = `Perfect${leadData.firstName ? ', ' + leadData.firstName : ''}! I've sent your personalized AI implementation guide to ${email}. You should receive it in the next few minutes.`;
 
       // If we have phone, mention callback
       if (leadData.phone) {
@@ -173,11 +190,11 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
       setConversationStage('followup');
 
     } catch (error) {
-      console.error('Error storing contact:', error);
+      console.error('Error processing request:', error);
 
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: "I encountered an issue processing your request. Please try again or contact us directly at hello@wrlds.com",
+        content: "I encountered an issue processing your request. Please try again or contact us directly at hello@crewcut.ai",
         role: 'assistant',
         timestamp: new Date()
       };
@@ -258,7 +275,7 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
       // If email detected at any stage before followup, send PDF report
       if (detectedEmail && conversationStage !== 'followup') {
         setLeadData(prev => ({ ...prev, email: detectedEmail }));
-        await sendPDFReport();
+        await sendPDFReport(detectedEmail);
         setIsLoading(false);
         return; // sendPDFReport handles the success message and stage transition
       }
@@ -343,6 +360,12 @@ Focus on helping them IMPLEMENT and MAKE MONEY, not just theory.`;
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+
+      // Capture AI solutions text if this is the initial stage (providing solutions)
+      if (conversationStage === 'initial' && messages.length >= 1 && response.length > 100) {
+        // This is likely the AI providing the 3 solutions
+        setAiSolutionsText(response);
+      }
 
       // ============================================================================
       // STAGE PROGRESSION LOGIC
