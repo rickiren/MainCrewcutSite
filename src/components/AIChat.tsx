@@ -26,13 +26,9 @@ interface LeadData {
 }
 
 type ConversationStage =
-  | 'welcome'           // Introduce AI, ask for name
-  | 'discovery'         // Understand business needs
-  | 'solutions'         // Provide 3 AI solutions
-  | 'email_collection'  // Ask for email for detailed guide
-  | 'phone_collection'  // Optional: ask for phone
-  | 'qualification'     // Budget, timeline, decision-maker
-  | 'followup';         // General support
+  | 'initial'           // Ask about business, provide solutions immediately
+  | 'email_collection'  // Collect email/phone for detailed guide
+  | 'followup';         // General support after contact collected
 
 interface AIChatProps {
   onExpandedChange?: (expanded: boolean) => void;
@@ -43,7 +39,7 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [conversationStage, setConversationStage] = useState<ConversationStage>('welcome');
+  const [conversationStage, setConversationStage] = useState<ConversationStage>('initial');
   const [leadData, setLeadData] = useState<LeadData>({});
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -173,14 +169,8 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
 
       setMessages(prev => [...prev, successMessage]);
 
-      // Move to phone collection if we don't have phone yet, otherwise qualification
-      if (!leadData.phone) {
-        setConversationStage('phone_collection');
-      } else if (!leadData.timeline) {
-        setConversationStage('qualification');
-      } else {
-        setConversationStage('followup');
-      }
+      // Move directly to followup mode
+      setConversationStage('followup');
 
     } catch (error) {
       console.error('Error storing contact:', error);
@@ -244,8 +234,8 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
       if (detectedCompany && !leadData.company) detectedData.company = detectedCompany;
       if (detectedTeamSize && !leadData.teamSize) detectedData.teamSize = detectedTeamSize;
 
-      // Store business context on first discovery message
-      if (conversationStage === 'discovery' && !leadData.businessContext) {
+      // Store business context on first message
+      if (conversationStage === 'initial' && !leadData.businessContext && messages.length === 0) {
         detectedData.businessContext = currentInput;
         // Extract business type from context
         if (currentInput.toLowerCase().includes('agency')) detectedData.businessType = 'Agency';
@@ -262,66 +252,15 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
       }
 
       // ============================================================================
-      // STAGE-SPECIFIC LOGIC - Handle transitions and special actions
+      // STAGE-SPECIFIC LOGIC - Handle email/phone detection and PDF sending
       // ============================================================================
 
-      // Welcome stage: Look for name, then progress to discovery
-      if (conversationStage === 'welcome' && detectedFirstName) {
-        setLeadData(prev => ({ ...prev, firstName: detectedFirstName }));
-        // AI will acknowledge name and ask about business in its response
-      }
-
-      // Email collection stage: If email detected, send PDF report
-      if (conversationStage === 'email_collection' && detectedEmail) {
+      // If email detected at any stage before followup, send PDF report
+      if (detectedEmail && conversationStage !== 'followup') {
         setLeadData(prev => ({ ...prev, email: detectedEmail }));
         await sendPDFReport();
         setIsLoading(false);
         return; // sendPDFReport handles the success message and stage transition
-      }
-
-      // Phone collection stage: If phone detected, acknowledge and move to qualification
-      if (conversationStage === 'phone_collection' && detectedPhone) {
-        setLeadData(prev => ({ ...prev, phone: detectedPhone }));
-        // AI will acknowledge and move to qualification
-      }
-
-      // Qualification stage: Extract timeline, budget, decision-maker status
-      if (conversationStage === 'qualification') {
-        const lowerInput = currentInput.toLowerCase();
-
-        // Timeline detection
-        if (!leadData.timeline) {
-          if (lowerInput.includes('next month') || lowerInput.includes('asap') || lowerInput.includes('immediately')) {
-            detectedData.timeline = 'Next month';
-          } else if (lowerInput.includes('next quarter') || lowerInput.includes('3 months') || lowerInput.includes('few months')) {
-            detectedData.timeline = 'Next quarter';
-          } else if (lowerInput.includes('exploring') || lowerInput.includes('researching') || lowerInput.includes('just looking')) {
-            detectedData.timeline = 'Exploring';
-          }
-        }
-
-        // Budget detection
-        if (!leadData.budget && (lowerInput.includes('$') || lowerInput.includes('budget') || lowerInput.includes('allocated'))) {
-          if (lowerInput.includes('no budget') || lowerInput.includes('research phase')) {
-            detectedData.budget = 'Research phase';
-          } else {
-            detectedData.budget = 'Budget allocated';
-          }
-        }
-
-        // Decision maker detection
-        if (leadData.decisionMaker === undefined) {
-          if (lowerInput.includes('founder') || lowerInput.includes('ceo') || lowerInput.includes('owner') || lowerInput.includes('my decision') || lowerInput.includes("it's my call")) {
-            detectedData.decisionMaker = true;
-          } else if (lowerInput.includes('team') || lowerInput.includes('others involved') || lowerInput.includes('need approval')) {
-            detectedData.decisionMaker = false;
-          }
-        }
-
-        // Update lead data
-        if (Object.keys(detectedData).length > 0) {
-          setLeadData(prev => ({ ...prev, ...detectedData }));
-        }
       }
 
       // ============================================================================
@@ -338,107 +277,60 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
       let systemPrompt = '';
       const userName = leadData.firstName || detectedData.firstName || '';
       const businessInfo = leadData.businessType || 'business';
-      const userEmail = leadData.email || detectedData.email || '';
 
-      if (conversationStage === 'welcome') {
-        systemPrompt = `You are Crewcut AI — a friendly, witty business consultant who helps companies unlock hidden profit through AI automation.
+      if (conversationStage === 'initial') {
+        // First interaction - provide value FAST
+        if (messages.length === 0) {
+          // Very first message - ask about business
+          systemPrompt = `You are Crewcut AI — a direct, value-focused AI consultant.
 
-${userName ? `The user just told you their name is ${userName}.` : 'This is your first interaction with a potential client.'}
+Your ONE job: Show people how to use AI to make more money in their business TODAY.
 
-Your goal:
-${userName
-  ? `• Greet ${userName} warmly by name\n• Ask about their business in a conversational way\n• Example: "Great to meet you, ${userName}! Tell me about your business - what industry are you in and what's your biggest challenge right now?"\n• Keep it SHORT - 2-3 sentences max`
-  : `• Introduce yourself briefly (1 sentence)\n• Ask for their first name in a natural way\n• Example: "Hi! I'm Crewcut AI, and I help businesses cut costs and boost efficiency with AI. What should I call you?"\n• Keep it SHORT - 2 sentences max`
-}
+The user just arrived. Keep it SUPER short (1-2 sentences):
+• Ask what type of business they run
+• Example: "Tell me about your business and I'll show you 3 ways to use AI to make more money today."
 
-DO NOT ask multiple questions at once. Just get their name OR ask about their business (depending on if you have their name).`;
-      } else if (conversationStage === 'discovery') {
-        systemPrompt = `You are Crewcut AI speaking with ${userName || 'a potential client'}. ${leadData.businessContext ? 'You are learning about their business.' : 'You need to understand their business to help them.'}
+DO NOT introduce yourself with fluff. Get straight to the point.`;
+        } else {
+          // They've described their business - provide solutions IMMEDIATELY
+          systemPrompt = `You are Crewcut AI. The user described their business: "${leadData.businessContext || currentInput}"
 
-Your goal is to discover their business situation:
-• Ask thoughtful questions to understand:
-  - Industry/business type
-  - Team size or company size
-  - Current biggest pain points or challenges
-• Keep it conversational - like a consultant getting to know a client
-• DON'T immediately jump to solutions - gather info first
-• DON'T ask for email yet
-• Show genuine interest and empathy
+Your goal: Show them how to make MORE MONEY with AI TODAY.
 
-${leadData.businessContext ? 'You have some context. Ask 1-2 follow-up questions to clarify their challenges before providing solutions.' : 'Start by asking what type of business they run and their main challenges.'}`;
-      } else if (conversationStage === 'solutions') {
-        systemPrompt = `You are Crewcut AI speaking with ${userName || 'a potential client'} who runs ${leadData.businessContext || 'a business'}.
+Provide exactly 3 specific, money-making AI solutions:
+• Each solution should focus on REVENUE or COST SAVINGS (be specific with $ amounts)
+• Mention specific AI tools (ChatGPT, Claude, Make.com, Zapier, etc.)
+• Keep each solution to 2-3 sentences MAX
+• Use this format:
+  1. **[Solution Name]**: [What it does] → [Saves $X/month OR Makes $X/month]
 
-Your goal is to provide immediate value:
-• Acknowledge their specific challenges
-• Provide exactly 3 specific, actionable AI solutions tailored to their business
-• For each solution:
-  - Specific AI tool or approach (e.g., "Make.com + Claude API")
-  - Concrete time/cost savings estimate
-  - Implementation complexity (Low/Medium/High)
-  - Brief 1-sentence description
-• Use clear, jargon-free language
-• Show ROI potential clearly
+After the 3 solutions, end with:
+"Want the full implementation guide with step-by-step instructions? Just drop your email${userName ? ', ' + userName : ''} and I'll send it over. (Or share your phone if you want us to call and walk you through it)"
 
-After providing solutions, naturally transition:
-"These are just the high-level opportunities I can see${userName ? ', ' + userName : ''}. I can create a detailed implementation guide with step-by-step instructions, specific tool recommendations, and ROI calculations tailored to your ${businessInfo}. Where should I send that? What's your email?"
-
-Make the email ask feel natural, not like a form field.`;
+Be enthusiastic but not salesy. Focus on VALUE and MONEY.`;
+        }
       } else if (conversationStage === 'email_collection') {
-        systemPrompt = `You are Crewcut AI speaking with ${userName || 'a potential client'}. They should be providing their email address.
+        // Waiting for contact info
+        systemPrompt = `You are Crewcut AI. You've shown them how to make money with AI. Now you're waiting for their email/phone.
 
 ${detectedEmail
-  ? `They just provided their email: ${detectedEmail}. Acknowledge it and confirm the guide is being sent.`
-  : `Gently remind them to share their email address so you can send the detailed implementation guide.`
+  ? `They just shared their email: ${detectedEmail}. Acknowledge it enthusiastically and confirm the guide is being sent.`
+  : `They haven't shared contact info yet. Gently remind them: "Just share your email or phone number and I'll send you the full implementation guide!"`
 }
 
-Keep it brief and friendly.`;
-      } else if (conversationStage === 'phone_collection') {
-        systemPrompt = `You are Crewcut AI speaking with ${userName || 'a potential client'}. You've just sent them the implementation guide to ${userEmail}.
-
-Your goal:
-• Thank them for their email (if just received)
-• Naturally offer a consultation call
-• Example: "I'd love to schedule a quick 15-minute call to walk you through the implementation and answer any questions. What's the best number to reach you?"
-• Make it feel optional but valuable (free consultation, personalized guidance)
-• If they provide a phone number, acknowledge it warmly
-• If they decline, that's fine - move to asking about timeline
-
-Keep it conversational and low-pressure.`;
-      } else if (conversationStage === 'qualification') {
-        systemPrompt = `You are Crewcut AI speaking with ${userName || 'a potential client'} from ${leadData.company || 'their company'}. You've provided solutions and collected contact info.
-
-Your goal is to understand project fit. Ask ONE question at a time:
-
-${!leadData.timeline
-  ? `Ask about timeline: "When are you looking to implement AI solutions - next month, next quarter, or just exploring for now?"`
-  : !leadData.budget
-  ? `Ask about budget: "Have you allocated budget for AI automation, or are we in the research phase?"`
-  : leadData.decisionMaker === undefined
-  ? `Ask about decision-making: "Are you the main decision-maker on this, or will others need to be involved?"`
-  : 'You have all qualification info. Summarize next steps based on their answers.'
-}
-
-Keep it conversational and consultative, not interrogative.
-
-${leadData.timeline && leadData.budget && leadData.decisionMaker !== undefined
-  ? `Based on their profile:\n- Timeline: ${leadData.timeline}\n- Budget: ${leadData.budget}\n- Decision maker: ${leadData.decisionMaker ? 'Yes' : 'Needs approval'}\n\nProvide appropriate next steps:\n- Hot lead (soon + budget + decision-maker): Suggest booking a call\n- Warm lead (3-6 months): Offer to stay in touch\n- Cold lead (exploring): Provide educational content`
-  : ''
-}`;
+Keep it brief and upbeat.`;
       } else {
-        // Follow-up conversation mode
-        systemPrompt = `You are Crewcut AI speaking with ${userName || 'a potential client'}. You've provided AI recommendations and collected their contact info. Now you're in support mode.
+        // Follow-up mode - they've received the guide
+        systemPrompt = `You are Crewcut AI${userName ? ' speaking with ' + userName : ''}. You've shown them AI money-making opportunities and sent them the implementation guide.
 
 Your role:
-• Answer implementation questions
-• Provide additional insights
-• Help troubleshoot challenges
-• Suggest specific tools and resources
-• If they describe a NEW challenge, treat it as a new discovery phase
-• Be genuinely helpful and build long-term relationship
-• Keep responses concise but informative
+• Answer any questions about implementation
+• Provide specific tool recommendations
+• Help them get started TODAY
+• If they ask a new question about their business, give them MORE money-making AI ideas
+• Keep responses SHORT and ACTION-oriented
 
-You're not just here to capture leads - you're here to be a valuable resource.`;
+Focus on helping them IMPLEMENT and MAKE MONEY, not just theory.`;
       }
 
       const response = await claudeAPI.chat(currentInput, conversationHistory, systemPrompt);
@@ -455,21 +347,10 @@ You're not just here to capture leads - you're here to be a valuable resource.`;
       // ============================================================================
       // STAGE PROGRESSION LOGIC
       // ============================================================================
-      // Progress to next stage based on collected data
-      if (conversationStage === 'welcome' && detectedFirstName) {
-        setConversationStage('discovery');
-      } else if (conversationStage === 'discovery' && leadData.businessContext && messages.length >= 4) {
-        // After some back-and-forth in discovery, move to solutions
-        setConversationStage('solutions');
-      } else if (conversationStage === 'solutions' && messages.length >= 6) {
-        // After providing solutions, ask for email
+      // Simple progression: initial → email_collection → followup
+      if (conversationStage === 'initial' && messages.length >= 2) {
+        // After AI provides solutions (2+ messages), move to email collection stage
         setConversationStage('email_collection');
-      } else if (conversationStage === 'phone_collection' && (detectedPhone || messages.filter(m => m.role === 'assistant').length >= 8)) {
-        // If phone provided or user declines, move to qualification
-        setConversationStage('qualification');
-      } else if (conversationStage === 'qualification' && leadData.timeline && leadData.budget !== undefined && leadData.decisionMaker !== undefined) {
-        // All qualification data collected, move to followup
-        setConversationStage('followup');
       }
 
     } catch (error) {
@@ -500,13 +381,9 @@ You're not just here to capture leads - you're here to be a valuable resource.`;
       <form onSubmit={handleSubmit} className="relative mb-4">
         <div className="bg-[#242424] border-2 border-black rounded-xl p-4 shadow-sm w-full">
           <div className="text-xs text-gray-400 mb-2 text-center">
-            {conversationStage === 'welcome' && "👋 Let's unlock hidden profit in your business with AI"}
-            {conversationStage === 'discovery' && "💡 Tell me about your business challenges"}
-            {conversationStage === 'solutions' && "🎯 Getting your personalized AI solutions ready..."}
-            {conversationStage === 'email_collection' && "📧 Share your email to receive your implementation guide"}
-            {conversationStage === 'phone_collection' && "📞 Optional: Get a free consultation call"}
-            {conversationStage === 'qualification' && "🎯 Let's make sure you get the right solution"}
-            {conversationStage === 'followup' && "💬 Ask me anything about implementing AI in your business"}
+            {conversationStage === 'initial' && "💰 Discover how AI can make you more money today"}
+            {conversationStage === 'email_collection' && "📧 Get your free implementation guide"}
+            {conversationStage === 'followup' && "💬 Ask me anything about implementing AI"}
           </div>
           <textarea
             value={inputValue}
@@ -520,19 +397,11 @@ You're not just here to capture leads - you're here to be a valuable resource.`;
               }
             }}
             placeholder={
-              conversationStage === 'welcome'
-                ? "Hi! What should I call you?"
-                : conversationStage === 'discovery'
-                ? "Tell me about your business - industry, team size, and biggest challenges..."
-                : conversationStage === 'solutions'
-                ? "Any questions about these solutions?"
+              conversationStage === 'initial'
+                ? "What type of business do you run?"
                 : conversationStage === 'email_collection'
-                ? "Enter your email (e.g., sarah@company.com)"
-                : conversationStage === 'phone_collection'
-                ? "Best number to reach you? (e.g., 555-123-4567)"
-                : conversationStage === 'qualification'
-                ? "Share your timeline, budget, or decision-making process..."
-                : "Ask me anything about AI implementation..."
+                ? "Your email or phone number..."
+                : "Ask me anything..."
             }
             className="w-full resize-none border-none outline-none text-white placeholder-gray-400 text-sm caret-orange-500 bg-transparent"
             rows={3}
@@ -593,7 +462,7 @@ You're not just here to capture leads - you're here to be a valuable resource.`;
                 <button
                   onClick={() => {
                     setMessages([]);
-                    setConversationStage('welcome');
+                    setConversationStage('initial');
                     setLeadData({});
                   }}
                   className="absolute top-2 right-12 p-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded-full transition-colors z-10"
