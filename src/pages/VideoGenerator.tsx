@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Player } from '@remotion/player';
 import { VideoComposition } from '@/remotion/VideoComposition';
 import { JSONVideoComposition } from '@/remotion/JSONVideoComposition';
@@ -16,6 +16,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Download, Play, Loader2, FileJson, Edit3 } from 'lucide-react';
 import PageLayout from '@/components/PageLayout';
 import { renderMedia } from '@remotion/renderer';
+
+// Debug wrapper for Player to track mount/unmount
+const DebugPlayer: React.FC<any> = ({ playerKey, ...props }) => {
+  useEffect(() => {
+    console.log('🎥 Player MOUNTED with key:', playerKey);
+    return () => {
+      console.log('💀 Player UNMOUNTED with key:', playerKey);
+    };
+  }, [playerKey]);
+
+  return <Player {...props} />;
+};
 
 const VideoGenerator = () => {
   const [mode, setMode] = useState<'simple' | 'json'>('simple');
@@ -57,10 +69,19 @@ const VideoGenerator = () => {
 
   // Increment counter whenever video config changes
   useEffect(() => {
+    console.log('🔄 Video config changed, updating player...', {
+      counter: updateCounter,
+      scriptLinesCount: scriptLines.length,
+      defaultAnimation: videoStyle.defaultAnimation,
+      sceneType: videoStyle.sceneType,
+      format: selectedFormat
+    });
     setUpdateCounter(prev => prev + 1);
   }, [scriptLines, videoStyle, selectedFormat]);
 
   const playerKey = `video-${updateCounter}`;
+
+  console.log('🎬 Rendering VideoGenerator with key:', playerKey);
 
   const handleRender = async () => {
     setIsRendering(true);
@@ -182,8 +203,9 @@ const VideoGenerator = () => {
                       loop
                     />
                   ) : mode === 'simple' && scriptLines.length > 0 ? (
-                    <Player
+                    <DebugPlayer
                       key={playerKey}
+                      playerKey={playerKey}
                       component={VideoComposition}
                       inputProps={{
                         scriptLines,
