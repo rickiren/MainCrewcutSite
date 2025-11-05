@@ -3,6 +3,7 @@ import { Player } from '@remotion/player';
 import { VideoComposition } from '@/remotion/VideoComposition';
 import { ScriptEditor } from '@/components/video-generator/ScriptEditor';
 import { StyleCustomizer } from '@/components/video-generator/StyleCustomizer';
+import { VideoAIChat } from '@/components/video-generator/VideoAIChat';
 import { ScriptLine, VideoStyle, VIDEO_FORMATS, VideoFormat } from '@/types/video';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -70,6 +71,18 @@ const VideoGenerator = () => {
     } finally {
       setIsRendering(false);
       setRenderProgress(0);
+    }
+  };
+
+  const handleAIUpdate = (updates: {
+    scriptLines?: ScriptLine[];
+    style?: Partial<VideoStyle>;
+  }) => {
+    if (updates.scriptLines) {
+      setScriptLines(updates.scriptLines);
+    }
+    if (updates.style) {
+      setVideoStyle((prev) => ({ ...prev, ...updates.style }));
     }
   };
 
@@ -213,6 +226,13 @@ const VideoGenerator = () => {
             </div>
           </div>
         </div>
+
+        {/* AI Chat Assistant */}
+        <VideoAIChat
+          currentScript={scriptLines}
+          currentStyle={videoStyle}
+          onUpdateVideo={handleAIUpdate}
+        />
       </div>
     </PageLayout>
   );
