@@ -51,6 +51,15 @@ const VideoGenerator = () => {
     return Math.ceil(totalSeconds * format.fps);
   }, [scriptLines, format.fps]);
 
+  // Force Player to re-render when inputs change
+  const playerKey = useMemo(() => {
+    return JSON.stringify({
+      scriptLines,
+      style: videoStyle,
+      format: selectedFormat,
+    });
+  }, [scriptLines, videoStyle, selectedFormat]);
+
   const handleRender = async () => {
     setIsRendering(true);
     setRenderProgress(0);
@@ -154,6 +163,7 @@ const VideoGenerator = () => {
                 <div className="bg-black rounded-lg overflow-hidden">
                   {mode === 'json' && jsonConfig ? (
                     <Player
+                      key={JSON.stringify(jsonConfig)}
                       component={JSONVideoComposition}
                       inputProps={{
                         config: jsonConfig,
@@ -171,6 +181,7 @@ const VideoGenerator = () => {
                     />
                   ) : mode === 'simple' && scriptLines.length > 0 ? (
                     <Player
+                      key={playerKey}
                       component={VideoComposition}
                       inputProps={{
                         scriptLines,
