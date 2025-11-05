@@ -1,5 +1,5 @@
 
-import { ArrowRight, Linkedin } from "lucide-react";
+import { ArrowRight, Linkedin, Instagram } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -68,12 +68,20 @@ const Footer = () => {
 
             <div className="flex space-x-4">
               <a 
-                href="https://www.linkedin.com/company/wrldstechnologies/" 
+                href="https://www.linkedin.com/company/crewcut-agency/" 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
               >
                 <Linkedin size={20} />
+              </a>
+              <a 
+                href="https://www.instagram.com/crewcut.ai/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
+              >
+                <Instagram size={20} />
               </a>
             </div>
           </div>

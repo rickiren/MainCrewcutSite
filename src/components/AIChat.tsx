@@ -50,18 +50,29 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
   // EXTRACTION FUNCTIONS - Auto-detect contact info from user messages
   // ============================================================================
 
-  // Extract first name from greeting patterns
-  const extractFirstName = (text: string): string | null => {
+  // Extract first name from greeting patterns - only explicit name introductions
+  // We don't extract names from business descriptions to avoid confusion
+  const extractFirstName = (text: string, conversationStage: ConversationStage): string | null => {
+    // Only extract names in followup stage, not during initial business description
+    if (conversationStage === 'initial') {
+      return null;
+    }
+    
+    // Only match explicit name introductions to avoid matching business types
     const patterns = [
       /(?:my name is|i'm|i am|this is|call me)\s+([a-z]+)/i,
-      /^([A-Z][a-z]+)$/,  // Just a capitalized name
       /^hi,?\s*(?:my name is)?\s*([A-Z][a-z]+)/i,
-      /^([A-Z][a-z]+)[,\s]/i  // Name at start followed by comma or space
     ];
 
     for (const pattern of patterns) {
       const match = text.match(pattern);
       if (match && match[1] && match[1].length > 1) {
+        // Don't match common business terms that might be mistaken for names
+        const businessTerms = ['ecommerce', 'saas', 'agency', 'consulting', 'retail', 'store', 'shop', 'business'];
+        const matchedWord = match[1].toLowerCase();
+        if (businessTerms.includes(matchedWord)) {
+          return null;
+        }
         return match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
       }
     }
@@ -167,8 +178,8 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
         // Don't fail the whole flow if email fails - just log it
       }
 
-      // Personalized success message
-      let successContent = `Perfect${leadData.firstName ? ', ' + leadData.firstName : ''}! I've sent your personalized AI implementation guide to ${email}. You should receive it in the next few minutes.`;
+      // Success message
+      let successContent = `Perfect! I've sent your personalized AI implementation guide to ${email}. You should receive it in the next few minutes.`;
 
       // If we have phone, mention callback
       if (leadData.phone) {
@@ -239,7 +250,8 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
       // ============================================================================
       const detectedData: Partial<LeadData> = {};
 
-      const detectedFirstName = extractFirstName(currentInput);
+      // Only extract name in followup stage, not during initial business description
+      const detectedFirstName = extractFirstName(currentInput, conversationStage);
       const detectedEmail = extractEmail(currentInput);
       const detectedPhone = extractPhone(currentInput);
       const detectedCompany = extractCompany(currentInput);
@@ -292,7 +304,7 @@ const AIChat = ({ onExpandedChange }: AIChatProps) => {
 
       // Dynamic system prompt based on conversation stage
       let systemPrompt = '';
-      const userName = leadData.firstName || detectedData.firstName || '';
+      // Don't use firstName in system prompts to avoid confusion with business types
       const businessInfo = leadData.businessType || 'business';
 
       if (conversationStage === 'initial') {
@@ -322,7 +334,7 @@ Provide exactly 3 specific, money-making AI solutions:
   1. **[Solution Name]**: [What it does] → [Saves $X/month OR Makes $X/month]
 
 After the 3 solutions, end with:
-"Want the full implementation guide with step-by-step instructions? Just drop your email${userName ? ', ' + userName : ''} and I'll send it over. (Or share your phone if you want us to call and walk you through it)"
+"Want the full implementation guide with step-by-step instructions? Just drop your email and I'll send it over. (Or share your phone if you want us to call and walk you through it)"
 
 Be enthusiastic but not salesy. Focus on VALUE and MONEY.`;
         }
@@ -338,7 +350,7 @@ ${detectedEmail
 Keep it brief and upbeat.`;
       } else {
         // Follow-up mode - they've received the guide
-        systemPrompt = `You are Crewcut AI${userName ? ' speaking with ' + userName : ''}. You've shown them AI money-making opportunities and sent them the implementation guide.
+        systemPrompt = `You are Crewcut AI. You've shown them AI money-making opportunities and sent them the implementation guide.
 
 Your role:
 • Answer any questions about implementation
