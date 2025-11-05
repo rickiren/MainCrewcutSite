@@ -28,7 +28,7 @@ export const VideoAIChat: React.FC<VideoAIChatProps> = ({
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: "Hi! I'm your AI video assistant. I can help you create and customize videos. Try telling me:\n\n• \"Create a video about [topic]\"\n• \"Change the colors to ocean blue\"\n• \"Make it 5 seconds per scene\"\n• \"Add a scene that says [text]\"\n\nWhat would you like to create today?",
+      content: "Hi! I'm your AI video assistant. I can help you create and customize videos. Try telling me:\n\n• \"Create a video about [topic]\"\n• \"Change the colors to ocean blue\"\n• \"Make it 5 seconds per scene\"\n• \"Add confetti particles\"\n• \"Make it glitchy and cyberpunk\"\n• \"Add a vintage film look\"\n\nWhat would you like to create today?",
     },
   ]);
   const [input, setInput] = useState('');
@@ -58,6 +58,11 @@ CAPABILITIES:
 5. Change scene type (3d cinematic with floating glass cards, or 2d classic)
 6. Change background style for 2D (3d-cards, gradient, solid)
 7. Change text style (solid, gradient)
+8. Add/modify global effects:
+   - Particle effects (confetti, snow, rain, floating particles)
+   - Glitch effects (RGB split, scan lines, static noise)
+   - Neon glow effects (glowing overlays, flicker effects)
+   - Film grain effects (vintage grain, vignette)
 
 RESPONSE FORMAT:
 You must respond with TWO parts:
@@ -154,6 +159,79 @@ I can set any colors you like! I have these presets ready:
 
 Or tell me any colors you want and I'll customize them for you!
 [/MESSAGE]
+
+User: "Add confetti particles to celebrate"
+[MESSAGE]
+Perfect! I've added colorful confetti particles that fall across your video. The particles use your video's color scheme and add a celebratory feel!
+[/MESSAGE]
+[JSON]
+{
+  "style": {
+    "globalEffects": {
+      "particles": {
+        "enabled": true,
+        "type": "confetti",
+        "count": 100,
+        "speed": 2
+      }
+    }
+  }
+}
+[/JSON]
+
+User: "Make it glitchy and cyberpunk"
+[MESSAGE]
+Awesome! I've added a glitch effect with RGB split and scan lines. This gives your video that edgy cyberpunk aesthetic!
+[/MESSAGE]
+[JSON]
+{
+  "style": {
+    "globalEffects": {
+      "glitch": {
+        "enabled": true,
+        "intensity": 0.3,
+        "rgbSplit": true,
+        "scanLines": true
+      }
+    }
+  }
+}
+[/JSON]
+
+User: "Add a vintage film look"
+[MESSAGE]
+Love it! I've added film grain and a subtle vignette to give your video that classic vintage cinema look.
+[/MESSAGE]
+[JSON]
+{
+  "style": {
+    "globalEffects": {
+      "film": {
+        "enabled": true,
+        "grainIntensity": 0.3,
+        "vignette": true
+      }
+    }
+  }
+}
+[/JSON]
+
+User: "Remove all effects"
+[MESSAGE]
+All effects removed! Your video is now clean and minimal, focusing on the content and animations.
+[/MESSAGE]
+[JSON]
+{
+  "style": {
+    "globalEffects": {
+      "particles": { "enabled": false },
+      "glitch": { "enabled": false },
+      "neon": { "enabled": false },
+      "film": { "enabled": false }
+    }
+  }
+}
+[/JSON]
 
 Now respond to the user's request below.`;
   };

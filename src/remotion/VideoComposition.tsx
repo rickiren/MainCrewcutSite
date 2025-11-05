@@ -1,6 +1,8 @@
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { ScriptLine, VideoStyle } from '@/types/video';
 import { Scene3DPerspective } from './Scene3DPerspective';
+import { ParticleEffectScene } from './scenes/ParticleEffectScene';
+import { GlitchTransitionScene } from './scenes/GlitchTransitionScene';
 
 interface VideoCompositionProps {
   scriptLines: ScriptLine[];
@@ -33,9 +35,11 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ scriptLines,
   const currentLine = scriptLines[currentLineIndex];
   const lineDurationInFrames = currentLine.duration * fps;
 
-  // Use 3D scene if sceneType is '3d'
+  // Render main scene content
+  let mainContent: React.ReactNode;
+
   if (style.sceneType === '3d') {
-    return (
+    mainContent = (
       <Scene3DPerspective
         text={currentLine.text}
         frame={framesSinceLineStart}
@@ -48,26 +52,108 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ scriptLines,
         animationSpeed={style.animationSpeed}
       />
     );
+  } else {
+    mainContent = (
+      <AbsoluteFill>
+        {style.backgroundStyle === '3d-cards' ? (
+          <Background3DCards frame={framesSinceLineStart} fps={fps} colors={style} />
+        ) : style.backgroundStyle === 'gradient' ? (
+          <BackgroundGradient colors={style} />
+        ) : (
+          <BackgroundSolid color={style.primaryColor} />
+        )}
+
+        <AnimatedTextScene
+          text={currentLine.text}
+          frame={framesSinceLineStart}
+          duration={lineDurationInFrames}
+          fps={fps}
+          style={style}
+        />
+      </AbsoluteFill>
+    );
   }
 
-  // Otherwise use 2D scene
+  // Apply global effects as overlays
+  const effects = style.globalEffects;
+
   return (
     <AbsoluteFill>
-      {style.backgroundStyle === '3d-cards' ? (
-        <Background3DCards frame={framesSinceLineStart} fps={fps} colors={style} />
-      ) : style.backgroundStyle === 'gradient' ? (
-        <BackgroundGradient colors={style} />
-      ) : (
-        <BackgroundSolid color={style.primaryColor} />
+      {/* Main content */}
+      {mainContent}
+
+      {/* Particle Effect Overlay */}
+      {effects?.particles?.enabled && (
+        <ParticleEffectScene
+          type={effects.particles.type}
+          count={effects.particles.count}
+          colors={effects.particles.colors || [style.accentColor, style.primaryColor, style.secondaryColor]}
+          speed={effects.particles.speed}
+          size={{ min: 2, max: 8 }}
+          direction="down"
+          gravity={true}
+          rotation={true}
+          backgroundColor="transparent"
+        />
       )}
 
-      <AnimatedTextScene
-        text={currentLine.text}
-        frame={framesSinceLineStart}
-        duration={lineDurationInFrames}
-        fps={fps}
-        style={style}
-      />
+      {/* Glitch Effect Overlay */}
+      {effects?.glitch?.enabled && (
+        <GlitchTransitionScene
+          intensity={effects.glitch.intensity}
+          layers={3}
+          rgbSplit={effects.glitch.rgbSplit}
+          scanLines={effects.glitch.scanLines}
+          staticNoise={true}
+          displacementAmount={10}
+          backgroundColor="transparent"
+        />
+      )}
+
+      {/* Film Grain Effect */}
+      {effects?.film?.enabled && (
+        <AbsoluteFill style={{ pointerEvents: 'none' }}>
+          {/* Film grain */}
+          <div
+            style={{
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              opacity: effects.film.grainIntensity,
+              mixBlendMode: 'overlay',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' /%3E%3C/svg%3E")`,
+            }}
+          />
+
+          {/* Vignette */}
+          {effects.film.vignette && (
+            <div
+              style={{
+                position: 'absolute',
+                width: '100%',
+                height: '100%',
+                background: 'radial-gradient(circle, transparent 0%, transparent 50%, rgba(0,0,0,0.6) 100%)',
+              }}
+            />
+          )}
+        </AbsoluteFill>
+      )}
+
+      {/* Neon Glow Effect (applied to entire composition) */}
+      {effects?.neon?.enabled && (
+        <AbsoluteFill style={{ pointerEvents: 'none' }}>
+          <div
+            style={{
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              opacity: effects.neon.flickerEffect ? (Math.random() > 0.95 ? 0.3 : 1) : 1,
+              boxShadow: `inset 0 0 ${effects.neon.glowIntensity * 2}px ${style.accentColor}`,
+              mixBlendMode: 'screen',
+            }}
+          />
+        </AbsoluteFill>
+      )}
     </AbsoluteFill>
   );
 };
