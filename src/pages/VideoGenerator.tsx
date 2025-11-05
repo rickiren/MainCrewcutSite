@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Player } from '@remotion/player';
 import { VideoComposition } from '@/remotion/VideoComposition';
 import { JSONVideoComposition } from '@/remotion/JSONVideoComposition';
@@ -52,13 +52,15 @@ const VideoGenerator = () => {
   }, [scriptLines, format.fps]);
 
   // Force Player to re-render when inputs change
-  const playerKey = useMemo(() => {
-    return JSON.stringify({
-      scriptLines,
-      style: videoStyle,
-      format: selectedFormat,
-    });
+  // Use a counter-based approach for reliable updates
+  const [updateCounter, setUpdateCounter] = useState(0);
+
+  // Increment counter whenever video config changes
+  useEffect(() => {
+    setUpdateCounter(prev => prev + 1);
   }, [scriptLines, videoStyle, selectedFormat]);
+
+  const playerKey = `video-${updateCounter}`;
 
   const handleRender = async () => {
     setIsRendering(true);
