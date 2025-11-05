@@ -18,6 +18,7 @@ export const defaultVideoStyle: VideoStyle = {
   backgroundStyle: '3d-cards',
   textStyle: 'solid',
   textColor: '#FFFFFF',
+  sceneType: '3d', // Default to 3D for cinematic effect
 };
 
 export const RemotionRoot: React.FC = () => {

@@ -1,5 +1,6 @@
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { ScriptLine, VideoStyle } from '@/types/video';
+import { Scene3DPerspective } from './Scene3DPerspective';
 
 interface VideoCompositionProps {
   scriptLines: ScriptLine[];
@@ -32,6 +33,24 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ scriptLines,
   const currentLine = scriptLines[currentLineIndex];
   const lineDurationInFrames = currentLine.duration * fps;
 
+  // Use 3D scene if sceneType is '3d'
+  if (style.sceneType === '3d') {
+    return (
+      <Scene3DPerspective
+        text={currentLine.text}
+        frame={framesSinceLineStart}
+        duration={lineDurationInFrames}
+        fps={fps}
+        primaryColor={style.primaryColor}
+        secondaryColor={style.secondaryColor}
+        accentColor={style.accentColor}
+        textColor={style.textColor}
+        animationSpeed={style.animationSpeed}
+      />
+    );
+  }
+
+  // Otherwise use 2D scene
   return (
     <AbsoluteFill>
       {style.backgroundStyle === '3d-cards' ? (

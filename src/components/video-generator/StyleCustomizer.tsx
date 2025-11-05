@@ -52,6 +52,30 @@ export const StyleCustomizer: React.FC<StyleCustomizerProps> = ({ style, onChang
       <div>
         <h3 className="text-lg font-semibold mb-4">Style Customization</h3>
 
+        {/* Scene Type */}
+        <div className="mb-6">
+          <Label htmlFor="sceneType" className="text-sm mb-2 block">
+            Scene Type
+          </Label>
+          <Select
+            value={style.sceneType}
+            onValueChange={(value: any) => updateStyle({ sceneType: value })}
+          >
+            <SelectTrigger className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="3d">🎬 Cinematic 3D (Floating Glass Cards)</SelectItem>
+              <SelectItem value="2d">🎨 Classic 2D (Flat Design)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-gray-500 mt-1">
+            {style.sceneType === '3d'
+              ? 'Camera rotates around floating glass cards in 3D space'
+              : 'Traditional 2D scene with background effects'}
+          </p>
+        </div>
+
         {/* Color Presets */}
         <div className="mb-6">
           <Label className="text-sm mb-2 block">Color Presets</Label>
@@ -175,25 +199,30 @@ export const StyleCustomizer: React.FC<StyleCustomizerProps> = ({ style, onChang
           </Select>
         </div>
 
-        {/* Background Style */}
-        <div className="mt-6">
-          <Label htmlFor="backgroundStyle" className="text-sm">
-            Background Style
-          </Label>
-          <Select
-            value={style.backgroundStyle}
-            onValueChange={(value: any) => updateStyle({ backgroundStyle: value })}
-          >
-            <SelectTrigger className="mt-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="3d-cards">3D Cards</SelectItem>
-              <SelectItem value="gradient">Gradient</SelectItem>
-              <SelectItem value="solid">Solid</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Background Style (only for 2D scenes) */}
+        {style.sceneType === '2d' && (
+          <div className="mt-6">
+            <Label htmlFor="backgroundStyle" className="text-sm">
+              Background Style
+            </Label>
+            <Select
+              value={style.backgroundStyle}
+              onValueChange={(value: any) => updateStyle({ backgroundStyle: value })}
+            >
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="3d-cards">3D Cards</SelectItem>
+                <SelectItem value="gradient">Gradient</SelectItem>
+                <SelectItem value="solid">Solid</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500 mt-1">
+              Background style for 2D scenes
+            </p>
+          </div>
+        )}
 
         {/* Text Style */}
         <div className="mt-6">

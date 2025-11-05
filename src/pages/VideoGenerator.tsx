@@ -28,6 +28,7 @@ const VideoGenerator = () => {
     backgroundStyle: '3d-cards',
     textStyle: 'solid',
     textColor: '#FFFFFF',
+    sceneType: '3d',
   });
 
   const [selectedFormat, setSelectedFormat] = useState<string>('instagram-reel');
