@@ -17,21 +17,21 @@ interface SEOProps {
 }
 
 const SEO: React.FC<SEOProps> = ({
-  title = 'WRLDS',
-  description = 'WRLDS Technologies: Pioneering smart engineering solutions with textile sensors for sports, safety, and performance monitoring.',
+  title = 'CREW CUT - Custom AI & SaaS Tools',
+  description = 'Custom AI & SaaS Tools - Unlock 6-7 Figures in 14 Days. Turn your processes into code. Custom AI and SaaS tools that create new revenue streams and automate 30-50% of wasted hours.',
   type = 'website',
-  name = 'WRLDS Technologies',
-  imageUrl = '/lovable-uploads/48ecf6e2-5a98-4a9d-af6f-ae2265cd4098.png',
+  name = 'CREW CUT',
+  imageUrl = '/image.png',
   publishDate,
   modifiedDate,
   author,
   category,
-  keywords = ['smart textiles', 'wearable technology', 'textile sensors', 'sports tech', 'safety monitoring', 'performance analytics'],
+  keywords = ['custom AI', 'SaaS development', 'business automation', 'revenue growth', 'process automation', 'AI tools', 'custom software'],
   isBlogPost = false
 }) => {
   const location = useLocation();
-  const currentUrl = `https://wrlds.com${location.pathname}`;
-  const absoluteImageUrl = imageUrl.startsWith('http') ? imageUrl : `https://wrlds.com${imageUrl}`;
+  const currentUrl = `https://home.crewcut.agency${location.pathname}`;
+  const absoluteImageUrl = imageUrl.startsWith('http') ? imageUrl : `https://home.crewcut.agency${imageUrl}`;
 
   // Enhanced keywords for specific posts
   const enhancedKeywords = location.pathname.includes('smart-ppe-revolution') 
@@ -71,18 +71,18 @@ const SEO: React.FC<SEOProps> = ({
   const organizationStructuredData = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
-    name: 'WRLDS Technologies',
-    url: 'https://wrlds.com',
-    logo: 'https://wrlds.com/lovable-uploads/14ea3fe0-19d6-425c-b95b-4117bc41f3ca.png',
-    description: 'Pioneering smart engineering solutions with textile sensors',
+    name: 'CREW CUT',
+    url: 'https://home.crewcut.agency',
+    logo: 'https://home.crewcut.agency/image.png',
+    description: 'Custom AI & SaaS Tools - Unlock 6-7 Figures in 14 Days',
     contactPoint: {
       '@type': 'ContactPoint',
       contactType: 'customer service',
-      email: 'info@wrlds.com'
+      email: 'hello@crewcut.ai'
     },
     sameAs: [
-      'https://www.linkedin.com/company/wrlds-technologies',
-      'https://twitter.com/wrldstechnologies'
+      'https://www.linkedin.com/company/crewcut-agency',
+      'https://www.instagram.com/crewcut.ai'
     ]
   };
 
@@ -105,19 +105,19 @@ const SEO: React.FC<SEOProps> = ({
     dateModified: modifiedDate || publishDate,
     author: {
       '@type': 'Organization',
-      name: author || 'WRLDS Technologies',
-      url: 'https://wrlds.com'
+      name: author || 'CREW CUT',
+      url: 'https://home.crewcut.agency'
     },
     publisher: {
       '@type': 'Organization',
-      name: 'WRLDS Technologies',
+      name: 'CREW CUT',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://wrlds.com/lovable-uploads/14ea3fe0-19d6-425c-b95b-4117bc41f3ca.png',
+        url: 'https://home.crewcut.agency/image.png',
         width: 512,
         height: 512
       },
-      url: 'https://wrlds.com'
+      url: 'https://home.crewcut.agency'
     },
     description: description,
     keywords: enhancedKeywords.join(', '),
@@ -211,12 +211,12 @@ const SEO: React.FC<SEOProps> = ({
       <meta property="og:image" content={absoluteImageUrl} />
       <meta property="og:image:width" content="1200" />
       <meta property="og:image:height" content="630" />
-      <meta property="og:site_name" content="WRLDS Technologies" />
+      <meta property="og:site_name" content="CREW CUT" />
       <meta property="og:locale" content="en_US" />
       {isBlogPost && category && <meta property="article:section" content={category} />}
       {isBlogPost && publishDate && <meta property="article:published_time" content={publishDate} />}
       {isBlogPost && modifiedDate && <meta property="article:modified_time" content={modifiedDate} />}
-      {isBlogPost && <meta property="article:publisher" content="https://wrlds.com" />}
+      {isBlogPost && <meta property="article:publisher" content="https://home.crewcut.agency" />}
       
       {/* Twitter */}
       <meta name="twitter:card" content="summary_large_image" />
@@ -224,8 +224,8 @@ const SEO: React.FC<SEOProps> = ({
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={absoluteImageUrl} />
-      <meta name="twitter:site" content="@wrldstechnologies" />
-      <meta name="twitter:creator" content="@wrldstechnologies" />
+      <meta name="twitter:site" content="@crewcutai" />
+      <meta name="twitter:creator" content="@crewcutai" />
       
       {/* LinkedIn specific */}
       <meta property="og:image:secure_url" content={absoluteImageUrl} />
