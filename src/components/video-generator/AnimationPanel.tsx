@@ -30,13 +30,19 @@ export const AnimationPanel: React.FC<AnimationPanelProps> = ({ style, onChange 
   };
 
   const updateDefaultAnimation = (updates: Partial<typeof defaultAnimation>) => {
-    onChange({
+    const newStyle = {
       ...style,
       defaultAnimation: {
         ...defaultAnimation,
         ...updates,
       },
+    };
+    console.log('✏️ AnimationPanel updating:', {
+      updates,
+      oldAnimation: defaultAnimation,
+      newAnimation: newStyle.defaultAnimation
     });
+    onChange(newStyle);
   };
 
   return (
