@@ -15,6 +15,7 @@ export interface VideoStyle {
   backgroundStyle: '3d-cards' | 'gradient' | 'solid';
   textStyle: 'solid' | 'gradient';
   textColor: string;
+  sceneType: '2d' | '3d'; // Toggle between 2D and 3D scenes
 }
 
 export interface VideoFormat {
