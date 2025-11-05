@@ -7,6 +7,7 @@ import { StyleCustomizer } from '@/components/video-generator/StyleCustomizer';
 import { VideoAIChat } from '@/components/video-generator/VideoAIChat';
 import { JSONEditor } from '@/components/video-generator/JSONEditor';
 import { EffectsPanel } from '@/components/video-generator/EffectsPanel';
+import { AnimationPanel } from '@/components/video-generator/AnimationPanel';
 import { ScriptLine, VideoStyle, VIDEO_FORMATS, VideoFormat } from '@/types/video';
 import { VideoJSONConfig, getAspectRatioDimensions } from '@/types/videoJSON';
 import { Button } from '@/components/ui/button';
@@ -243,8 +244,9 @@ const VideoGenerator = () => {
                   <JSONEditor onConfigUpdate={setJsonConfig} />
                 ) : (
                   <Tabs defaultValue="script" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
+                    <TabsList className="grid w-full grid-cols-4">
                       <TabsTrigger value="script">Script</TabsTrigger>
+                      <TabsTrigger value="animation">Animation</TabsTrigger>
                       <TabsTrigger value="style">Style</TabsTrigger>
                       <TabsTrigger value="effects">Effects</TabsTrigger>
                     </TabsList>
@@ -253,6 +255,13 @@ const VideoGenerator = () => {
                       <ScriptEditor
                         scriptLines={scriptLines}
                         onChange={setScriptLines}
+                      />
+                    </TabsContent>
+
+                    <TabsContent value="animation" className="mt-6">
+                      <AnimationPanel
+                        style={videoStyle}
+                        onChange={setVideoStyle}
                       />
                     </TabsContent>
 

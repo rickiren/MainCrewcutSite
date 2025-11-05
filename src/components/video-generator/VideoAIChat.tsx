@@ -28,7 +28,7 @@ export const VideoAIChat: React.FC<VideoAIChatProps> = ({
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: "Hi! I'm your AI video assistant. I can help you create and customize videos. Try telling me:\n\n• \"Create a video about [topic]\"\n• \"Change the colors to ocean blue\"\n• \"Make it 5 seconds per scene\"\n• \"Add confetti particles\"\n• \"Make it glitchy and cyberpunk\"\n• \"Add a vintage film look\"\n\nWhat would you like to create today?",
+      content: "Hi! I'm your AI video assistant. I can help you create and customize videos. Try telling me:\n\n• \"Create a video about [topic]\"\n• \"Make the text flip up like Desktop Tool\"\n• \"Use typewriter animation\"\n• \"Animate text word by word\"\n• \"Change the colors to ocean blue\"\n• \"Add confetti particles\"\n• \"Make it glitchy and cyberpunk\"\n\nWhat would you like to create today?",
     },
   ]);
   const [input, setInput] = useState('');
@@ -58,7 +58,12 @@ CAPABILITIES:
 5. Change scene type (3d cinematic with floating glass cards, or 2d classic)
 6. Change background style for 2D (3d-cards, gradient, solid)
 7. Change text style (solid, gradient)
-8. Add/modify global effects:
+8. Add/modify text animations:
+   - Default animation for all lines (fadeIn, slideUp, flipUp, scale, typewriter, blur, etc.)
+   - Per-line animation overrides
+   - Animation units: whole, word, character
+   - Stagger and duration controls
+9. Add/modify global effects:
    - Particle effects (confetti, snow, rain, floating particles)
    - Glitch effects (RGB split, scan lines, static noise)
    - Neon glow effects (glowing overlays, flicker effects)
@@ -228,6 +233,103 @@ All effects removed! Your video is now clean and minimal, focusing on the conten
       "glitch": { "enabled": false },
       "neon": { "enabled": false },
       "film": { "enabled": false }
+    }
+  }
+}
+[/JSON]
+
+User: "Make the text flip up like Desktop Tool"
+[MESSAGE]
+Perfect! I've set the default animation to the classic "Desktop Tool" flip up effect. Each character will flip up individually with a smooth 3D rotation. This will apply to all your text unless you customize individual lines.
+[/MESSAGE]
+[JSON]
+{
+  "style": {
+    "defaultAnimation": {
+      "type": "flipUp",
+      "unit": "character",
+      "staggerInFrames": 2,
+      "durationInFrames": 20,
+      "fade": true
+    }
+  }
+}
+[/JSON]
+
+User: "Use typewriter animation instead"
+[MESSAGE]
+Great choice! Switched to typewriter animation with a blinking cursor. Your text will appear character by character like classic typing. Perfect for a retro or tech feel!
+[/MESSAGE]
+[JSON]
+{
+  "style": {
+    "defaultAnimation": {
+      "type": "typewriter",
+      "unit": "character",
+      "staggerInFrames": 4,
+      "cursor": true
+    }
+  }
+}
+[/JSON]
+
+User: "Make the first line zoom in dramatically"
+[MESSAGE]
+Nice! I've set the first line to use a dramatic zoom in effect. It will scale up from small to full size while fading in, creating a strong impact. The other lines will use the default animation.
+[/MESSAGE]
+[JSON]
+{
+  "scriptLines": [
+    {
+      "id": "1",
+      "text": "Welcome to Video Generator",
+      "duration": 3,
+      "animation": {
+        "type": "scale",
+        "unit": "whole",
+        "from": 0,
+        "to": 1,
+        "durationInFrames": 40,
+        "fade": true
+      }
+    },
+    {"id": "2", "text": "Create amazing animated videos", "duration": 3},
+    {"id": "3", "text": "With just a few clicks", "duration": 3}
+  ]
+}
+[/JSON]
+
+User: "Animate text word by word sliding up"
+[MESSAGE]
+Done! I've set the default animation to slide up word by word. Each word will smoothly slide upward and fade in with a slight delay between words. This creates a flowing, elegant reveal effect.
+[/MESSAGE]
+[JSON]
+{
+  "style": {
+    "defaultAnimation": {
+      "type": "slideUp",
+      "unit": "word",
+      "staggerInFrames": 5,
+      "durationInFrames": 25,
+      "distance": 30,
+      "fade": true
+    }
+  }
+}
+[/JSON]
+
+User: "Make text appear faster"
+[MESSAGE]
+Sped it up! I've reduced the stagger to 2 frames and duration to 15 frames. Your text will now appear much quicker with snappier animations.
+[/MESSAGE]
+[JSON]
+{
+  "style": {
+    "defaultAnimation": {
+      "type": "fadeIn",
+      "unit": "word",
+      "staggerInFrames": 2,
+      "durationInFrames": 15
     }
   }
 }
