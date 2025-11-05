@@ -195,6 +195,52 @@ export const StyleCustomizer: React.FC<StyleCustomizerProps> = ({ style, onChang
           </Select>
         </div>
 
+        {/* Text Style */}
+        <div className="mt-6">
+          <Label htmlFor="textStyle" className="text-sm">
+            Text Style
+          </Label>
+          <Select
+            value={style.textStyle}
+            onValueChange={(value: any) => updateStyle({ textStyle: value })}
+          >
+            <SelectTrigger className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="solid">Solid Color</SelectItem>
+              <SelectItem value="gradient">Gradient</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Text Color (only for solid text) */}
+        {style.textStyle === 'solid' && (
+          <div className="mt-6">
+            <Label htmlFor="textColor" className="text-sm">
+              Text Color
+            </Label>
+            <div className="flex gap-2 mt-1">
+              <Input
+                id="textColor"
+                type="color"
+                value={style.textColor}
+                onChange={(e) => updateStyle({ textColor: e.target.value })}
+                className="w-20 h-10 cursor-pointer"
+              />
+              <Input
+                value={style.textColor}
+                onChange={(e) => updateStyle({ textColor: e.target.value })}
+                placeholder="#FFFFFF"
+                className="flex-1"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              White (#FFFFFF) recommended for best visibility
+            </p>
+          </div>
+        )}
+
         {/* Animation Speed */}
         <div className="mt-6">
           <Label htmlFor="animationSpeed" className="text-sm">

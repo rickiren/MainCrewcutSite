@@ -25,6 +25,8 @@ const VideoGenerator = () => {
     fontFamily: 'Space Grotesk, sans-serif',
     animationSpeed: 1,
     backgroundStyle: '3d-cards',
+    textStyle: 'solid',
+    textColor: '#FFFFFF',
   });
 
   const [selectedFormat, setSelectedFormat] = useState<string>('instagram-reel');
