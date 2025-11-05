@@ -23,15 +23,57 @@ export interface VideoScene {
 }
 
 export type SceneType =
+  // Text Effects
   | 'textReveal'
   | 'textWith3DBackground'
+  | 'textHighlight'
+  | 'kineticText'
+  | 'text3D'
+  | 'textPath'
+
+  // 3D/Camera Effects
   | 'dashboardShowcase'
-  | 'calendarFlip'
-  | 'staticImageShowcase'
+  | 'productShowcase'
   | 'uiGrid'
+  | 'staticImageShowcase'
+  | 'environment3D'
+  | 'simple3DText'
+
+  // Data Visualization
   | 'statCard'
+  | 'chartAnimated'
+  | 'progressBar'
+  | 'counter'
+  | 'timeline'
+  | 'mapAnimation'
+
+  // Transitions
+  | 'calendarFlip'
+  | 'morphTransition'
+  | 'wipeReveal'
+  | 'shatterTransition'
+  | 'zoomThrough'
+  | 'glitchTransition'
+  | 'displacementTransition'
+  | 'rotationTransition'
+
+  // CTAs
   | 'ctaButton'
-  | 'simple3DText'; // Our existing 3D scene
+  | 'ctaText'
+  | 'ctaForm'
+  | 'ctaQRCode'
+
+  // Visual Effects
+  | 'particleEffect'
+  | 'lightRays'
+  | 'logoReveal'
+  | 'loadingAnimation'
+  | 'hologramEffect'
+  | 'parallaxLayers'
+  | 'bokehEffect'
+  | 'filmEffect'
+  | 'neonEffect'
+  | 'mirrorEffect';
 
 // Scene-specific prop types
 

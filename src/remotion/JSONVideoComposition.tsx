@@ -6,6 +6,12 @@ import { CTAButtonScene } from './scenes/CTAButtonScene';
 import { UIGridScene } from './scenes/UIGridScene';
 import { StaticImageShowcaseScene } from './scenes/StaticImageShowcaseScene';
 import { Simple3DTextScene } from './scenes/Simple3DTextScene';
+import { TextHighlightScene } from './scenes/TextHighlightScene';
+import { CounterScene } from './scenes/CounterScene';
+import { ParticleEffectScene } from './scenes/ParticleEffectScene';
+import { GlitchTransitionScene } from './scenes/GlitchTransitionScene';
+import { NeonEffectScene } from './scenes/NeonEffectScene';
+import { ChartAnimatedScene } from './scenes/ChartAnimatedScene';
 
 interface JSONVideoCompositionProps {
   config: VideoJSONConfig;
@@ -59,45 +65,19 @@ function renderScene(scene: VideoScene, frameInScene: number, config: VideoJSONC
   };
 
   switch (scene.type) {
+    // ==================== TEXT EFFECTS ====================
     case 'textReveal':
-      return (
-        <TextRevealScene
-          {...scene.props}
-          {...commonProps}
-        />
-      );
+      return <TextRevealScene {...scene.props} {...commonProps} />;
 
-    case 'statCard':
-      return (
-        <StatCardScene
-          {...scene.props}
-          {...commonProps}
-        />
-      );
+    case 'textHighlight':
+      return <TextHighlightScene {...scene.props} {...commonProps} />;
 
-    case 'ctaButton':
-      return (
-        <CTAButtonScene
-          {...scene.props}
-          {...commonProps}
-        />
-      );
+    // ==================== 3D/CAMERA EFFECTS ====================
+    case 'staticImageShowcase':
+      return <StaticImageShowcaseScene {...scene.props} {...commonProps} />;
 
     case 'uiGrid':
-      return (
-        <UIGridScene
-          {...scene.props}
-          {...commonProps}
-        />
-      );
-
-    case 'staticImageShowcase':
-      return (
-        <StaticImageShowcaseScene
-          {...scene.props}
-          {...commonProps}
-        />
-      );
+      return <UIGridScene {...scene.props} {...commonProps} />;
 
     case 'simple3DText':
       return (
@@ -114,23 +94,82 @@ function renderScene(scene: VideoScene, frameInScene: number, config: VideoJSONC
         />
       );
 
-    // Add more scene types here as you build them
+    // ==================== DATA VISUALIZATION ====================
+    case 'statCard':
+      return <StatCardScene {...scene.props} {...commonProps} />;
+
+    case 'chartAnimated':
+      return <ChartAnimatedScene {...scene.props} {...commonProps} />;
+
+    case 'counter':
+      return <CounterScene {...scene.props} {...commonProps} />;
+
+    // ==================== TRANSITIONS ====================
+    case 'glitchTransition':
+      return <GlitchTransitionScene {...scene.props} {...commonProps} />;
+
+    // ==================== CTAs ====================
+    case 'ctaButton':
+      return <CTAButtonScene {...scene.props} {...commonProps} />;
+
+    // ==================== VISUAL EFFECTS ====================
+    case 'particleEffect':
+      return <ParticleEffectScene {...scene.props} {...commonProps} />;
+
+    case 'neonEffect':
+      return <NeonEffectScene {...scene.props} {...commonProps} />;
+
+    // ==================== COMING SOON ====================
     case 'textWith3DBackground':
+    case 'kineticText':
+    case 'text3D':
+    case 'textPath':
     case 'dashboardShowcase':
+    case 'productShowcase':
+    case 'environment3D':
+    case 'progressBar':
+    case 'timeline':
+    case 'mapAnimation':
     case 'calendarFlip':
+    case 'morphTransition':
+    case 'wipeReveal':
+    case 'shatterTransition':
+    case 'zoomThrough':
+    case 'displacementTransition':
+    case 'rotationTransition':
+    case 'ctaText':
+    case 'ctaForm':
+    case 'ctaQRCode':
+    case 'lightRays':
+    case 'logoReveal':
+    case 'loadingAnimation':
+    case 'hologramEffect':
+    case 'parallaxLayers':
+    case 'bokehEffect':
+    case 'filmEffect':
+    case 'mirrorEffect':
       return (
         <AbsoluteFill
           style={{
             backgroundColor: globalSettings.backgroundColor,
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
+            gap: '20px',
             color: '#ffffff',
-            fontSize: '48px',
+            fontSize: '36px',
             fontFamily: globalSettings.fontFamily,
+            padding: '40px',
+            textAlign: 'center',
           }}
         >
-          Scene type "{scene.type}" coming soon!
+          <div style={{ fontSize: '48px', opacity: 0.5 }}>🎬</div>
+          <div>Scene type: <span style={{ color: commonProps.primaryColor }}>{scene.type}</span></div>
+          <div style={{ fontSize: '24px', opacity: 0.7 }}>Coming soon!</div>
+          <div style={{ fontSize: '16px', opacity: 0.5, maxWidth: '600px' }}>
+            This scene type is defined and ready to be implemented. Check the videoJSONExtended.ts file for prop types.
+          </div>
         </AbsoluteFill>
       );
 
