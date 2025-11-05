@@ -175,6 +175,7 @@ const AnimatedTextScene: React.FC<{
         alignItems: 'center',
         justifyContent: 'center',
         padding: '60px',
+        pointerEvents: 'none',
       }}
     >
       <div
@@ -190,6 +191,7 @@ const AnimatedTextScene: React.FC<{
           flexWrap: 'wrap',
           justifyContent: 'center',
           gap: '16px',
+          maxWidth: '90%',
         }}
       >
         {words.map((word, i) => {
@@ -205,6 +207,21 @@ const AnimatedTextScene: React.FC<{
           const wordOpacity = interpolate(wordProgress, [0, 1], [0, 1]);
           const wordScale = interpolate(wordProgress, [0, 1], [0.8, 1]);
 
+          // Use gradient or solid text based on style
+          const textStyleProps = style.textStyle === 'gradient'
+            ? {
+                background: `linear-gradient(135deg, ${style.accentColor}, ${style.secondaryColor})`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                // Add fallback text shadow for depth even with gradient
+                filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.3))',
+              }
+            : {
+                color: style.textColor,
+                textShadow: '0 4px 20px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), 0 0 1px rgba(0,0,0,0.8)',
+              };
+
           return (
             <span
               key={i}
@@ -212,10 +229,8 @@ const AnimatedTextScene: React.FC<{
                 display: 'inline-block',
                 opacity: wordOpacity,
                 transform: `scale(${wordScale})`,
-                background: `linear-gradient(135deg, ${style.accentColor}, ${style.secondaryColor})`,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
+                fontWeight: 'bold',
+                ...textStyleProps,
               }}
             >
               {word}

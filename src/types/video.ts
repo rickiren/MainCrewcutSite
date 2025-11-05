@@ -13,6 +13,8 @@ export interface VideoStyle {
   fontFamily: string;
   animationSpeed: number; // 0.5 - 2.0
   backgroundStyle: '3d-cards' | 'gradient' | 'solid';
+  textStyle: 'solid' | 'gradient';
+  textColor: string;
 }
 
 export interface VideoFormat {
