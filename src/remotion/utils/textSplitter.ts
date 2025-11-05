@@ -223,33 +223,14 @@ export function getVisibleSegments(
 }
 
 // ═══════════════════════════════════════════════════════
-// HELPER: Wrap text segments in styled spans
+// HELPER: Segment renderer type (for use in components)
 // ═══════════════════════════════════════════════════════
 
 /**
  * Type for segment renderer function
+ * Used by components that render text segments
  */
 export type SegmentRenderer = (segment: TextSegment, style: React.CSSProperties) => React.ReactNode;
-
-/**
- * Default segment renderer - creates a span with the segment content
- */
-export const defaultSegmentRenderer: SegmentRenderer = (segment, style) => {
-  // For spaces, use a non-breaking space to preserve layout
-  const content = segment.isSpace && segment.content === ' ' ? '\u00A0' : segment.content;
-
-  return (
-    <span
-      key={segment.index}
-      style={{
-        display: 'inline-block',
-        ...style,
-      }}
-    >
-      {content}
-    </span>
-  );
-};
 
 // ═══════════════════════════════════════════════════════
 // UTILITY: Calculate animation progress for a segment

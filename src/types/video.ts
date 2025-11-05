@@ -1,11 +1,51 @@
 // Video generator types
 
+/**
+ * Text animation type for script lines
+ */
+export type TextAnimationType =
+  | 'fadeIn'
+  | 'slideUp'
+  | 'slideDown'
+  | 'slideLeft'
+  | 'slideRight'
+  | 'scale'
+  | 'flipUp'
+  | 'rotate3D'
+  | 'typewriter'
+  | 'blur';
+
+/**
+ * Animation unit - how text is split for animation
+ */
+export type TextAnimationUnit = 'whole' | 'line' | 'word' | 'character';
+
+/**
+ * Per-line animation configuration
+ */
+export interface LineAnimationConfig {
+  type: TextAnimationType;
+  unit: TextAnimationUnit;
+  staggerInFrames?: number;
+  durationInFrames?: number;
+  // Animation-specific options
+  direction?: 'up' | 'down' | 'left' | 'right' | 'flipUp' | 'flipDown' | 'swingIn' | 'spinIn';
+  distance?: number;
+  fade?: boolean;
+  from?: number;
+  to?: number;
+  cursor?: boolean;
+}
+
 export interface ScriptLine {
   id: string;
   text: string;
   duration: number; // in seconds
   sceneType?: 'text' | 'textHighlight' | 'counter' | 'chart' | 'cta';
   sceneProps?: any; // Scene-specific properties
+
+  // Text animation configuration
+  animation?: LineAnimationConfig;
 }
 
 export interface VideoStyle {
@@ -18,6 +58,9 @@ export interface VideoStyle {
   textStyle: 'solid' | 'gradient';
   textColor: string;
   sceneType: '2d' | '3d'; // Toggle between 2D and 3D scenes
+
+  // Default text animation (applies to lines without custom animation)
+  defaultAnimation?: LineAnimationConfig;
 
   // Global effects
   globalEffects?: {

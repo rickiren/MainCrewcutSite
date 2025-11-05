@@ -1,8 +1,10 @@
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig, Sequence } from 'remotion';
 import { ScriptLine, VideoStyle } from '@/types/video';
 import { Scene3DPerspective } from './Scene3DPerspective';
 import { ParticleEffectScene } from './scenes/ParticleEffectScene';
 import { GlitchTransitionScene } from './scenes/GlitchTransitionScene';
+import { AnimatedText } from './components/AnimatedText';
+import type { AnimationType } from './components/AnimatedText';
 
 interface VideoCompositionProps {
   scriptLines: ScriptLine[];
@@ -53,6 +55,14 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ scriptLines,
       />
     );
   } else {
+    // Get animation config (per-line or default)
+    const animationConfig = currentLine.animation || style.defaultAnimation || {
+      type: 'fadeIn',
+      unit: 'word',
+      staggerInFrames: 5,
+      durationInFrames: 30,
+    };
+
     mainContent = (
       <AbsoluteFill>
         {style.backgroundStyle === '3d-cards' ? (
@@ -63,13 +73,44 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ scriptLines,
           <BackgroundSolid color={style.primaryColor} />
         )}
 
-        <AnimatedTextScene
-          text={currentLine.text}
-          frame={framesSinceLineStart}
-          duration={lineDurationInFrames}
-          fps={fps}
-          style={style}
-        />
+        {/* Use AnimatedText component with per-line configuration */}
+        <Sequence from={0} durationInFrames={lineDurationInFrames}>
+          <AnimatedText
+            text={currentLine.text}
+            animation={animationConfig.type as AnimationType}
+            animationConfig={{
+              unit: animationConfig.unit,
+              staggerInFrames: animationConfig.staggerInFrames,
+              durationInFrames: animationConfig.durationInFrames,
+              direction: animationConfig.direction,
+              distance: animationConfig.distance,
+              fade: animationConfig.fade,
+              from: animationConfig.from,
+              to: animationConfig.to,
+              cursor: animationConfig.cursor,
+            }}
+            style={{
+              fontSize: 72,
+              fontWeight: 'bold',
+              fontFamily: style.fontFamily,
+              color: style.textColor,
+              textShadow:
+                style.textStyle === 'gradient'
+                  ? '0 4px 10px rgba(0,0,0,0.3)'
+                  : '0 4px 20px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4)',
+            }}
+            segmentStyle={
+              style.textStyle === 'gradient'
+                ? {
+                    background: `linear-gradient(135deg, ${style.accentColor}, ${style.secondaryColor})`,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                  }
+                : undefined
+            }
+          />
+        </Sequence>
       </AbsoluteFill>
     );
   }
@@ -225,124 +266,4 @@ const BackgroundGradient: React.FC<{ colors: VideoStyle }> = ({ colors }) => {
 // Solid Background
 const BackgroundSolid: React.FC<{ color: string }> = ({ color }) => {
   return <AbsoluteFill style={{ backgroundColor: color }} />;
-};
-
-// Animated Text Scene with Spring Physics
-const AnimatedTextScene: React.FC<{
-  text: string;
-  frame: number;
-  duration: number;
-  fps: number;
-  style: VideoStyle;
-}> = ({ text, frame, duration, fps, style }) => {
-  // Entry animation
-  const entryProgress = spring({
-    frame,
-    fps,
-    config: {
-      damping: 100 / style.animationSpeed,
-      stiffness: 200 * style.animationSpeed,
-      mass: 1,
-    },
-  });
-
-  // Exit animation
-  const exitStartFrame = duration - fps * 0.5; // Start exit 0.5s before end
-  const exitProgress = spring({
-    frame: frame - exitStartFrame,
-    fps,
-    config: {
-      damping: 100,
-      stiffness: 300,
-    },
-  });
-
-  const scale = frame > exitStartFrame
-    ? interpolate(exitProgress, [0, 1], [1, 0.8])
-    : interpolate(entryProgress, [0, 1], [0.5, 1]);
-
-  const opacity = frame > exitStartFrame
-    ? interpolate(exitProgress, [0, 1], [1, 0])
-    : interpolate(entryProgress, [0, 1], [0, 1]);
-
-  const translateY = frame > exitStartFrame
-    ? interpolate(exitProgress, [0, 1], [0, -50])
-    : interpolate(entryProgress, [0, 1], [50, 0]);
-
-  // Split text into words for gradient highlighting
-  const words = text.split(' ');
-  const wordDelay = 3; // frames between each word appearing
-
-  return (
-    <AbsoluteFill
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '60px',
-        pointerEvents: 'none',
-      }}
-    >
-      <div
-        style={{
-          transform: `scale(${scale}) translateY(${translateY}px)`,
-          opacity,
-          textAlign: 'center',
-          fontFamily: style.fontFamily,
-          fontSize: '72px',
-          fontWeight: 'bold',
-          lineHeight: 1.3,
-          display: 'flex',
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-          gap: '16px',
-          maxWidth: '90%',
-        }}
-      >
-        {words.map((word, i) => {
-          const wordProgress = spring({
-            frame: frame - i * wordDelay,
-            fps,
-            config: {
-              damping: 100,
-              stiffness: 200,
-            },
-          });
-
-          const wordOpacity = interpolate(wordProgress, [0, 1], [0, 1]);
-          const wordScale = interpolate(wordProgress, [0, 1], [0.8, 1]);
-
-          // Use gradient or solid text based on style
-          const textStyleProps = style.textStyle === 'gradient'
-            ? {
-                background: `linear-gradient(135deg, ${style.accentColor}, ${style.secondaryColor})`,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                // Add fallback text shadow for depth even with gradient
-                filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.3))',
-              }
-            : {
-                color: style.textColor,
-                textShadow: '0 4px 20px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), 0 0 1px rgba(0,0,0,0.8)',
-              };
-
-          return (
-            <span
-              key={i}
-              style={{
-                display: 'inline-block',
-                opacity: wordOpacity,
-                transform: `scale(${wordScale})`,
-                fontWeight: 'bold',
-                ...textStyleProps,
-              }}
-            >
-              {word}
-            </span>
-          );
-        })}
-      </div>
-    </AbsoluteFill>
-  );
 };
