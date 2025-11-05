@@ -1,18 +1,24 @@
 import { useState, useMemo } from 'react';
 import { Player } from '@remotion/player';
 import { VideoComposition } from '@/remotion/VideoComposition';
+import { JSONVideoComposition } from '@/remotion/JSONVideoComposition';
 import { ScriptEditor } from '@/components/video-generator/ScriptEditor';
 import { StyleCustomizer } from '@/components/video-generator/StyleCustomizer';
 import { VideoAIChat } from '@/components/video-generator/VideoAIChat';
+import { JSONEditor } from '@/components/video-generator/JSONEditor';
 import { ScriptLine, VideoStyle, VIDEO_FORMATS, VideoFormat } from '@/types/video';
+import { VideoJSONConfig, getAspectRatioDimensions } from '@/types/videoJSON';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Download, Play, Loader2 } from 'lucide-react';
+import { Download, Play, Loader2, FileJson, Edit3 } from 'lucide-react';
 import PageLayout from '@/components/PageLayout';
 import { renderMedia } from '@remotion/renderer';
 
 const VideoGenerator = () => {
+  const [mode, setMode] = useState<'simple' | 'json'>('simple');
+  const [jsonConfig, setJsonConfig] = useState<VideoJSONConfig | null>(null);
+
   const [scriptLines, setScriptLines] = useState<ScriptLine[]>([
     { id: '1', text: 'Welcome to Video Generator', duration: 3 },
     { id: '2', text: 'Create amazing animated videos', duration: 3 },
@@ -96,10 +102,30 @@ const VideoGenerator = () => {
             <h1 className="text-4xl font-bold text-gray-900 mb-4">
               Video Generator
             </h1>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
               Create stunning animated videos with 3D effects, spring animations, and gradient text.
               Perfect for Instagram Reels, YouTube, and social media.
             </p>
+
+            {/* Mode Toggle */}
+            <div className="flex items-center justify-center gap-4">
+              <Button
+                variant={mode === 'simple' ? 'default' : 'outline'}
+                onClick={() => setMode('simple')}
+                className="flex items-center gap-2"
+              >
+                <Edit3 className="w-4 h-4" />
+                Simple Mode
+              </Button>
+              <Button
+                variant={mode === 'json' ? 'default' : 'outline'}
+                onClick={() => setMode('json')}
+                className="flex items-center gap-2"
+              >
+                <FileJson className="w-4 h-4" />
+                JSON Mode
+              </Button>
+            </div>
           </div>
 
           {/* Main Content */}
@@ -124,7 +150,24 @@ const VideoGenerator = () => {
                 </div>
 
                 <div className="bg-black rounded-lg overflow-hidden">
-                  {scriptLines.length > 0 ? (
+                  {mode === 'json' && jsonConfig ? (
+                    <Player
+                      component={JSONVideoComposition}
+                      inputProps={{
+                        config: jsonConfig,
+                      }}
+                      durationInFrames={jsonConfig.durationInFrames}
+                      fps={jsonConfig.fps}
+                      compositionWidth={getAspectRatioDimensions(jsonConfig.aspectRatio).width}
+                      compositionHeight={getAspectRatioDimensions(jsonConfig.aspectRatio).height}
+                      style={{
+                        width: '100%',
+                        aspectRatio: jsonConfig.aspectRatio.replace('/', ' / '),
+                      }}
+                      controls
+                      loop
+                    />
+                  ) : mode === 'simple' && scriptLines.length > 0 ? (
                     <Player
                       component={VideoComposition}
                       inputProps={{
@@ -144,7 +187,11 @@ const VideoGenerator = () => {
                     />
                   ) : (
                     <div className="flex items-center justify-center h-[600px] text-white">
-                      <p>Add script lines to see preview</p>
+                      <p>
+                        {mode === 'json'
+                          ? 'Paste and preview JSON to see your video'
+                          : 'Add script lines to see preview'}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -191,26 +238,30 @@ const VideoGenerator = () => {
             {/* Right Panel - Editor */}
             <div className="space-y-6">
               <div className="bg-white rounded-xl shadow-lg p-6">
-                <Tabs defaultValue="script" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="script">Script</TabsTrigger>
-                    <TabsTrigger value="style">Style</TabsTrigger>
-                  </TabsList>
+                {mode === 'json' ? (
+                  <JSONEditor onConfigUpdate={setJsonConfig} />
+                ) : (
+                  <Tabs defaultValue="script" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="script">Script</TabsTrigger>
+                      <TabsTrigger value="style">Style</TabsTrigger>
+                    </TabsList>
 
-                  <TabsContent value="script" className="mt-6">
-                    <ScriptEditor
-                      scriptLines={scriptLines}
-                      onChange={setScriptLines}
-                    />
-                  </TabsContent>
+                    <TabsContent value="script" className="mt-6">
+                      <ScriptEditor
+                        scriptLines={scriptLines}
+                        onChange={setScriptLines}
+                      />
+                    </TabsContent>
 
-                  <TabsContent value="style" className="mt-6">
-                    <StyleCustomizer
-                      style={videoStyle}
-                      onChange={setVideoStyle}
-                    />
-                  </TabsContent>
-                </Tabs>
+                    <TabsContent value="style" className="mt-6">
+                      <StyleCustomizer
+                        style={videoStyle}
+                        onChange={setVideoStyle}
+                      />
+                    </TabsContent>
+                  </Tabs>
+                )}
               </div>
 
               {/* Tips Card */}
