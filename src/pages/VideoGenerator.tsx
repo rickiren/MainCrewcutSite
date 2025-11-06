@@ -374,7 +374,9 @@ const VideoGenerator = () => {
         />
 
         {/* Overlay Generator AI */}
-        {showOverlayGenerator && <OverlayGeneratorAI />}
+        {showOverlayGenerator && (
+          <OverlayGeneratorAI onClose={() => setShowOverlayGenerator(false)} />
+        )}
       </div>
     </PageLayout>
   );

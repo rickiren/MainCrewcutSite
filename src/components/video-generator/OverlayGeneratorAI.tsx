@@ -36,7 +36,11 @@ interface OverlayConfig {
   elements: OverlayElement[];
 }
 
-export const OverlayGeneratorAI: React.FC = () => {
+interface OverlayGeneratorAIProps {
+  onClose?: () => void;
+}
+
+export const OverlayGeneratorAI: React.FC<OverlayGeneratorAIProps> = ({ onClose }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
@@ -268,14 +272,26 @@ Now respond to the user's request.`;
             <Sparkles className="w-5 h-5" />
             <h3 className="font-semibold">AI Overlay Generator</h3>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsMinimized(true)}
-            className="text-white hover:bg-white/20"
-          >
-            <X className="w-4 h-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMinimized(true)}
+              className="text-white hover:bg-white/20"
+            >
+              Minimize
+            </Button>
+            {onClose && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                className="text-white hover:bg-white/20"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Main Content */}
