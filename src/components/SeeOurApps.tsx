@@ -1,15 +1,22 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Play, ExternalLink } from "lucide-react";
-import { apps } from "@/data/apps";
+import { useState } from "react";
+import { apps, type App } from "@/data/apps";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import AppIframeModal from "@/components/AppIframeModal";
 
 const SeeOurApps = () => {
+  const [iframeModalOpen, setIframeModalOpen] = useState(false);
+  const [selectedExternalApp, setSelectedExternalApp] = useState<App | null>(null);
+
   // Filter to only show apps that have demos
   const demoApps = apps.filter(app => 
-    app.id === 'writing-editor' || app.id === 'ai-logistics-optimizer-2'
+    app.id === 'writing-editor' || 
+    app.id === 'ai-logistics-optimizer-2' ||
+    (app.isExternal && app.externalUrl)
   );
 
   const containerVariants = {
@@ -31,6 +38,19 @@ const SeeOurApps = () => {
         duration: 0.5
       }
     }
+  };
+
+  const handleTryDemo = (app: App) => {
+    if (app.isExternal && app.externalUrl) {
+      setSelectedExternalApp(app);
+      setIframeModalOpen(true);
+    }
+  };
+
+  const hasDemo = (app: App) => {
+    return app.isExternal && app.externalUrl || 
+           app.id === 'writing-editor' || 
+           app.id === 'ai-logistics-optimizer-2';
   };
 
   return (
@@ -116,13 +136,24 @@ const SeeOurApps = () => {
                 <CardFooter className="pt-0 mt-auto">
                   <div className="w-full flex gap-2">
                     <div className="w-full flex gap-2">
-                      {(app.id === 'writing-editor' || app.id === 'ai-logistics-optimizer-2') ? (
-                        <Button asChild className="flex-1" size="sm">
-                          <Link to={app.demoUrl || `/apps/${app.id}`}>
+                      {hasDemo(app) ? (
+                        app.isExternal && app.externalUrl ? (
+                          <Button 
+                            className="flex-1" 
+                            size="sm"
+                            onClick={() => handleTryDemo(app)}
+                          >
                             <Play className="h-4 w-4 mr-2" />
                             Try Demo
-                          </Link>
-                        </Button>
+                          </Button>
+                        ) : (
+                          <Button asChild className="flex-1" size="sm">
+                            <Link to={app.demoUrl || `/apps/${app.id}`}>
+                              <Play className="h-4 w-4 mr-2" />
+                              Try Demo
+                            </Link>
+                          </Button>
+                        )
                       ) : (
                         <Button asChild className="flex-1" size="sm">
                           <Link to={`/apps/${app.id}`}>
@@ -158,6 +189,19 @@ const SeeOurApps = () => {
           </Link>
         </motion.div>
       </div>
+
+      {/* Iframe Modal for External Apps */}
+      {selectedExternalApp && selectedExternalApp.externalUrl && (
+        <AppIframeModal
+          isOpen={iframeModalOpen}
+          onClose={() => {
+            setIframeModalOpen(false);
+            setSelectedExternalApp(null);
+          }}
+          appTitle={selectedExternalApp.title}
+          appUrl={selectedExternalApp.externalUrl!}
+        />
+      )}
     </section>
   );
 };
