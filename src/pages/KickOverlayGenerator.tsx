@@ -3,13 +3,15 @@ import PageLayout from '@/components/PageLayout';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Download, Sparkles, Save, Undo2, Redo2, Upload } from 'lucide-react';
+import { Download, Sparkles, Save, Undo2, Redo2, Upload, Settings, X } from 'lucide-react';
 import { OverlayCanvas, type ExtractedHTMLElement, type OverlayCanvasHandle } from '@/components/kick-overlay/OverlayCanvas';
 import { ElementPanel } from '@/components/kick-overlay/ElementPanel';
 import { StyleCustomizer } from '@/components/kick-overlay/StyleCustomizer';
 import { AIOverlayGenerator } from '@/components/kick-overlay/AIOverlayGenerator';
 import { TemplateSelector } from '@/components/kick-overlay/TemplateSelector';
 import { HTMLEditorPanel } from '@/components/kick-overlay/HTMLEditorPanel';
+import { AIChatBubble } from '@/components/kick-overlay/AIChatBubble';
+import { Input } from '@/components/ui/input';
 import type { OverlayConfig, OverlayElement, OverlayTheme } from '@/types/overlay';
 import { OVERLAY_THEMES, CANVAS_PRESETS } from '@/types/overlay';
 
@@ -33,7 +35,23 @@ export default function KickOverlayGenerator() {
   const [isHTMLEditMode, setIsHTMLEditMode] = useState(false);
   const [htmlEditMode, setHtmlEditMode] = useState(false);
   const [extractedElements, setExtractedElements] = useState<ExtractedHTMLElement[]>([]);
+  const [apiKey, setApiKey] = useState<string>('');
+  const [showSettings, setShowSettings] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load API key from localStorage on mount
+  useEffect(() => {
+    const savedKey = localStorage.getItem('anthropic-api-key');
+    if (savedKey) {
+      setApiKey(savedKey);
+    }
+  }, []);
+
+  // Save API key to localStorage
+  const handleSaveApiKey = (key: string) => {
+    setApiKey(key);
+    localStorage.setItem('anthropic-api-key', key);
+  };
 
   // Track when user selects an HTML element (IDs starting with 'html-')
   useEffect(() => {
@@ -141,6 +159,23 @@ export default function KickOverlayGenerator() {
       localStorage.setItem('kick-overlay-html-template', html);
       localStorage.setItem('kick-overlay-css-template', css);
       console.log('✅ Changes saved successfully!');
+    } catch (e) {
+      console.warn('Failed to save to localStorage:', e);
+    }
+  };
+
+  // Handle AI-generated HTML updates
+  const handleAIHTMLUpdate = (html: string, css: string) => {
+    setOverlayConfig(prev => ({
+      ...prev,
+      htmlTemplate: html,
+      cssTemplate: css,
+    }));
+    // Also save to localStorage
+    try {
+      localStorage.setItem('kick-overlay-html-template', html);
+      localStorage.setItem('kick-overlay-css-template', css);
+      console.log('✅ AI changes applied successfully!');
     } catch (e) {
       console.warn('Failed to save to localStorage:', e);
     }
@@ -342,6 +377,15 @@ export default function KickOverlayGenerator() {
               <div className="flex gap-3">
                 <Button
                   variant="outline"
+                  onClick={() => setShowSettings(true)}
+                  className="bg-gray-600/20 border-gray-500 text-gray-200 hover:bg-gray-600/30"
+                  title="AI Settings"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Settings
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={() => fileInputRef.current?.click()}
                   className="bg-orange-600/20 border-orange-500 text-orange-200 hover:bg-orange-600/30"
                 >
@@ -493,6 +537,71 @@ export default function KickOverlayGenerator() {
           </div>
         </div>
       </div>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="bg-gray-900 border-gray-700 p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-white">AI Settings</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSettings(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Anthropic API Key
+                </label>
+                <Input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => handleSaveApiKey(e.target.value)}
+                  placeholder="sk-ant-api03-..."
+                  className="bg-gray-800 border-gray-700 text-white"
+                />
+                <p className="text-xs text-gray-400 mt-2">
+                  Get your API key from{' '}
+                  <a
+                    href="https://console.anthropic.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-purple-400 hover:text-purple-300"
+                  >
+                    console.anthropic.com
+                  </a>
+                </p>
+              </div>
+              <div className="bg-blue-600/10 border border-blue-600/30 rounded-lg p-3">
+                <p className="text-sm text-blue-300 mb-2">💡 About Claude AI Chat</p>
+                <p className="text-xs text-gray-400">
+                  The AI chat bubble lets you modify your overlay using natural language.
+                  Ask Claude to change colors, add elements, adjust styling, and more!
+                </p>
+              </div>
+              <Button
+                onClick={() => setShowSettings(false)}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                Done
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* AI Chat Bubble */}
+      <AIChatBubble
+        currentHTML={overlayConfig.htmlTemplate || ''}
+        currentCSS={overlayConfig.cssTemplate || ''}
+        onHTMLUpdate={handleAIHTMLUpdate}
+        apiKey={apiKey}
+      />
     </PageLayout>
   );
 }
