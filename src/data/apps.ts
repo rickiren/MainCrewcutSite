@@ -103,6 +103,35 @@ export const apps: App[] = [
       'Real-time coaching and insights',
       'Performance analytics dashboard'
     ]
+  },
+  {
+    id: 'kick-overlay-generator',
+    title: 'Kick Overlay Generator',
+    description: 'Create professional streaming overlays for Kick with AI-powered design assistance, drag-and-drop editor, and instant HTML export for OBS.',
+    image: '/kick-overlay-generator.png',
+    category: 'Content Creation',
+    features: [
+      'AI-powered overlay generation',
+      'Drag-and-drop editor',
+      'Real-time preview',
+      'Customizable themes',
+      'Export to HTML/OBS',
+      'Pre-built templates'
+    ],
+    technologies: ['React', 'TypeScript', 'Tailwind CSS', 'Framer Motion'],
+    demoUrl: '/apps/kick-overlay-generator',
+    demoMetrics: [
+      { title: 'Templates', value: '50+' },
+      { title: 'Export Time', value: '<5s' },
+      { title: 'Themes', value: '12' },
+      { title: 'Elements', value: '30+' }
+    ],
+    demoHighlights: [
+      'AI-generated overlay designs from text descriptions',
+      'Drag-and-drop element positioning',
+      'Live preview with customization panel',
+      'One-click export to OBS-ready HTML'
+    ]
   }
 ];
 
