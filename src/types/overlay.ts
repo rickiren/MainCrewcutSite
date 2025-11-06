@@ -88,6 +88,8 @@ export interface OverlayConfig {
   };
   elements: OverlayElement[];
   theme: OverlayTheme;
+  htmlTemplate?: string; // Raw HTML template for exact design preservation
+  cssTemplate?: string; // Raw CSS template for exact design preservation
   metadata?: {
     createdAt: string;
     updatedAt: string;

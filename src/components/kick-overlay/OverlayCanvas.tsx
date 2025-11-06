@@ -184,6 +184,105 @@ export function OverlayCanvas({
   const canvasWidth = config.canvas.width * canvasScale;
   const canvasHeight = config.canvas.height * canvasScale;
 
+  // Generate HTML content for iframe when HTML template is present
+  const generateHTMLContent = (): string => {
+    if (!config.htmlTemplate) return '';
+    
+    // Parse the HTML template
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(config.htmlTemplate, 'text/html');
+    
+    // Check if it's a full HTML document
+    if (doc.documentElement.tagName === 'HTML') {
+      // If additional CSS is provided, inject it into the head
+      if (config.cssTemplate) {
+        const styleEl = doc.createElement('style');
+        styleEl.textContent = config.cssTemplate;
+        if (doc.head) {
+          doc.head.appendChild(styleEl);
+        } else {
+          const head = doc.createElement('head');
+          head.appendChild(styleEl);
+          doc.documentElement.insertBefore(head, doc.documentElement.firstChild);
+        }
+      }
+      // Return the complete HTML document
+      return `<!DOCTYPE html>${doc.documentElement.outerHTML}`;
+    }
+    
+    // Otherwise, wrap body content in full HTML structure
+    const allCSS = config.cssTemplate || '';
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=${config.canvas.width}, height=${config.canvas.height}">
+  <title>Overlay Preview</title>
+  ${allCSS ? `<style>${allCSS}</style>` : ''}
+</head>
+<body>
+  ${config.htmlTemplate}
+</body>
+</html>`;
+  };
+
+  // If HTML template exists, render it in an iframe
+  if (config.htmlTemplate) {
+    const htmlContent = generateHTMLContent();
+    const iframeRef = useRef<HTMLIFrameElement>(null);
+
+    useEffect(() => {
+      if (iframeRef.current && htmlContent) {
+        const iframe = iframeRef.current;
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        iframe.src = url;
+        
+        return () => {
+          URL.revokeObjectURL(url);
+        };
+      }
+    }, [htmlContent]);
+
+    return (
+      <div ref={containerRef} className="w-full h-full min-h-[500px] flex flex-col items-center">
+        {/* Canvas Info */}
+        <div className="w-full flex items-center justify-between mb-3 text-sm text-gray-400">
+          <div>
+            Resolution: {config.canvas.width} × {config.canvas.height}px
+            {canvasScale < 1 && ` (${Math.round(canvasScale * 100)}% scale)`}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-1 bg-purple-600/20 text-purple-300 rounded text-xs">HTML Template Mode</span>
+            <span>Elements: {config.elements.length}</span>
+          </div>
+        </div>
+
+        {/* HTML Preview in iframe */}
+        <div
+          className="relative bg-gray-900 border-2 border-gray-700 rounded-lg shadow-2xl overflow-hidden"
+          style={{
+            width: `${canvasWidth}px`,
+            height: `${canvasHeight}px`,
+          }}
+        >
+          <iframe
+            ref={iframeRef}
+            className="border-0"
+            style={{
+              width: `${config.canvas.width}px`,
+              height: `${config.canvas.height}px`,
+              transform: `scale(${canvasScale})`,
+              transformOrigin: 'top left',
+            }}
+            title="Overlay Preview"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Default element-based rendering
   return (
     <div ref={containerRef} className="w-full h-full min-h-[500px] flex flex-col items-center">
       {/* Canvas Info */}

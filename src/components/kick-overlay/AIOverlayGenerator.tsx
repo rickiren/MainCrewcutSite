@@ -2,41 +2,96 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Sparkles, X, Loader2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Sparkles, X, Loader2, Image as ImageIcon, Code } from 'lucide-react';
 import type { OverlayElement } from '@/types/overlay';
 import { ELEMENT_PRESETS, OVERLAY_THEMES } from '@/types/overlay';
+import { KickImageUploader } from './KickImageUploader';
+import { KickHTMLTemplateInput } from './KickHTMLTemplateInput';
+import { parseHTMLTemplate, analyzeImageDesign } from '@/utils/overlayParser';
 
 interface AIOverlayGeneratorProps {
-  onGenerate: (elements: OverlayElement[]) => void;
+  onGenerate: (elements: OverlayElement[], htmlTemplate?: string, cssTemplate?: string) => void;
   onClose: () => void;
 }
 
 export function AIOverlayGenerator({ onGenerate, onClose }: AIOverlayGeneratorProps) {
+  const [activeTab, setActiveTab] = useState('text');
   const [description, setDescription] = useState('');
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState('');
 
   const handleGenerate = async () => {
-    if (!description.trim()) {
-      setError('Please enter a description');
-      return;
-    }
-
     setIsGenerating(true);
     setError('');
 
     try {
-      // Parse the description and generate elements
-      const elements = parseDescriptionToElements(description);
+      let elements: OverlayElement[] = [];
 
-      // Simulate AI processing time
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (activeTab === 'text') {
+        if (!description.trim()) {
+          setError('Please enter a description');
+          setIsGenerating(false);
+          return;
+        }
+        // Parse the description and generate elements
+        elements = parseDescriptionToElements(description);
+        // Simulate AI processing time
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } else if (activeTab === 'image') {
+        if (!uploadedImage) {
+          setError('Please upload an image first');
+          setIsGenerating(false);
+          return;
+        }
+        setIsAnalyzing(true);
+        elements = await analyzeImageDesign(uploadedImage);
+        setIsAnalyzing(false);
+      } else if (activeTab === 'html') {
+        setError('Please use the HTML template input below');
+        setIsGenerating(false);
+        return;
+      }
 
       onGenerate(elements);
     } catch (err) {
       setError('Failed to generate overlay. Please try again.');
       console.error(err);
+      setIsAnalyzing(false);
     } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleImageUpload = (imageData: string, fileName: string) => {
+    setUploadedImage(imageData);
+    setError('');
+  };
+
+  const handleImageRemove = () => {
+    setUploadedImage(null);
+  };
+
+  const handleHTMLTemplateSubmit = async (html: string, css: string) => {
+    setIsGenerating(true);
+    setError('');
+
+    try {
+      if (!html || !html.trim()) {
+        setError('Please provide HTML content');
+        setIsGenerating(false);
+        return;
+      }
+
+      const result = parseHTMLTemplate(html, css);
+      // Pass both elements and HTML/CSS templates for exact design preservation
+      onGenerate(result.elements, result.htmlTemplate, result.cssTemplate);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to parse HTML template. Please check your code.';
+      setError(errorMessage);
+      console.error('HTML parsing error:', err);
       setIsGenerating(false);
     }
   };
@@ -198,57 +253,115 @@ export function AIOverlayGenerator({ onGenerate, onClose }: AIOverlayGeneratorPr
         </Button>
       </div>
 
-      <div className="space-y-3">
-        <Label className="text-gray-300">
-          Describe your ideal overlay layout
-        </Label>
-        <Textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="e.g., Create a gaming overlay with webcam in bottom right, chat on left, and alerts at top center..."
-          className="min-h-[100px] bg-gray-700/50 border-gray-600 text-white resize-none"
-          disabled={isGenerating}
-        />
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-3 bg-gray-800/50">
+          <TabsTrigger value="text" className="data-[state=active]:bg-purple-600">
+            <Sparkles className="w-4 h-4 mr-1" />
+            Text
+          </TabsTrigger>
+          <TabsTrigger value="image" className="data-[state=active]:bg-purple-600">
+            <ImageIcon className="w-4 h-4 mr-1" />
+            Image
+          </TabsTrigger>
+          <TabsTrigger value="html" className="data-[state=active]:bg-purple-600">
+            <Code className="w-4 h-4 mr-1" />
+            HTML
+          </TabsTrigger>
+        </TabsList>
 
-        {error && (
-          <p className="text-sm text-red-400">{error}</p>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-sm text-gray-400">Example prompts:</Label>
-        <div className="space-y-2">
-          {examplePrompts.map((prompt, index) => (
-            <button
-              key={index}
-              onClick={() => setDescription(prompt)}
-              className="block w-full text-left text-sm text-gray-400 hover:text-purple-400 transition-colors p-2 rounded bg-gray-700/30 hover:bg-gray-700/50"
+        <TabsContent value="text" className="space-y-4 mt-4">
+          <div className="space-y-3">
+            <Label className="text-gray-300">
+              Describe your ideal overlay layout
+            </Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="e.g., Create a gaming overlay with webcam in bottom right, chat on left, and alerts at top center..."
+              className="min-h-[100px] bg-gray-700/50 border-gray-600 text-white resize-none"
               disabled={isGenerating}
-            >
-              "{prompt}"
-            </button>
-          ))}
-        </div>
-      </div>
+            />
 
-      <div className="flex gap-3 pt-4">
-        <Button
-          onClick={handleGenerate}
-          disabled={isGenerating || !description.trim()}
-          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-4 h-4 mr-2" />
-              Generate Overlay
-            </>
+            {error && (
+              <p className="text-sm text-red-400">{error}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm text-gray-400">Example prompts:</Label>
+            <div className="space-y-2">
+              {examplePrompts.map((prompt, index) => (
+                <button
+                  key={index}
+                  onClick={() => setDescription(prompt)}
+                  className="block w-full text-left text-sm text-gray-400 hover:text-purple-400 transition-colors p-2 rounded bg-gray-700/30 hover:bg-gray-700/50"
+                  disabled={isGenerating}
+                >
+                  "{prompt}"
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="text-xs text-gray-500 pt-2">
+            <p>💡 Tip: Mention specific elements like "webcam", "chat", "alerts", "donation goal", or describe a layout like "gaming", "minimal", or "full featured".</p>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="image" className="space-y-4 mt-4">
+          <div className="space-y-3">
+            <Label className="text-gray-300">
+              Upload a screenshot of a design you like
+            </Label>
+            <KickImageUploader
+              onImageUpload={handleImageUpload}
+              onImageRemove={handleImageRemove}
+              uploadedImage={uploadedImage}
+              isAnalyzing={isAnalyzing}
+            />
+
+            {error && (
+              <p className="text-sm text-red-400">{error}</p>
+            )}
+          </div>
+
+          <div className="text-xs text-gray-500 pt-2">
+            <p>💡 Tip: Upload a screenshot of any overlay design. The AI will analyze it and recreate a similar layout with positioned elements.</p>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="html" className="space-y-4 mt-4">
+          <KickHTMLTemplateInput
+            onTemplateSubmit={handleHTMLTemplateSubmit}
+            isProcessing={isGenerating}
+          />
+
+          {error && (
+            <p className="text-sm text-red-400">{error}</p>
           )}
-        </Button>
+        </TabsContent>
+      </Tabs>
+
+      <div className="flex gap-3 pt-4 border-t border-gray-700">
+        {activeTab !== 'html' && (
+          <Button
+            onClick={handleGenerate}
+            disabled={isGenerating || (activeTab === 'text' && !description.trim()) || (activeTab === 'image' && !uploadedImage)}
+            className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                {activeTab === 'image' ? 'Analyzing...' : 'Generating...'}
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 mr-2" />
+                Generate Overlay
+              </>
+            )}
+          </Button>
+        )}
         <Button
           onClick={onClose}
           variant="outline"
@@ -256,10 +369,6 @@ export function AIOverlayGenerator({ onGenerate, onClose }: AIOverlayGeneratorPr
         >
           Cancel
         </Button>
-      </div>
-
-      <div className="text-xs text-gray-500 pt-2">
-        <p>💡 Tip: Mention specific elements like "webcam", "chat", "alerts", "donation goal", or describe a layout like "gaming", "minimal", or "full featured".</p>
       </div>
     </div>
   );
