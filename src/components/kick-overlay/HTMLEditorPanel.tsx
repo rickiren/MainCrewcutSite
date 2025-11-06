@@ -52,31 +52,85 @@ export function HTMLEditorPanel({
   };
 
   const handleContentUpdate = (content: string) => {
-    if (selected) {
-      setTextContent(content);
+    if (!selected || !selected.element) return;
 
-      // Preserve inline styles and structure by using innerHTML for simple text
-      // If the element has no child elements, we can safely use textContent
-      // Otherwise, try to update just the text nodes to preserve structure
-      if (selected.element.children.length === 0) {
-        // No child elements, safe to use textContent
-        selected.element.textContent = content;
-      } else {
-        // Has child elements, update innerHTML carefully
-        // This preserves child elements like <span>, <strong>, etc.
-        const firstTextNode = Array.from(selected.element.childNodes).find(
-          node => node.nodeType === Node.TEXT_NODE
-        );
-        if (firstTextNode) {
-          firstTextNode.textContent = content;
-        } else {
-          // Fallback to innerHTML if no text nodes
-          selected.element.innerHTML = content;
+    setTextContent(content);
+
+    // Preserve inline styles and structure by updating text nodes carefully
+    // If the element has no child elements, we can safely use textContent
+    if (selected.element.children.length === 0) {
+      // No child elements, safe to use textContent
+      selected.element.textContent = content;
+    } else {
+      // Has child elements - need to preserve structure
+      // Find direct text node children (not nested in child elements)
+      const directTextNodes: Text[] = [];
+      for (let i = 0; i < selected.element.childNodes.length; i++) {
+        const node = selected.element.childNodes[i];
+        if (node.nodeType === Node.TEXT_NODE) {
+          directTextNodes.push(node as Text);
         }
       }
 
-      onUpdateElement(selected.id, { content });
+      if (directTextNodes.length > 0) {
+        // Update the first direct text node with the new content
+        // This preserves child elements while updating only the direct text
+        // Only update if we found a valid text node to update
+        if (directTextNodes[0] && directTextNodes[0].parentNode === selected.element) {
+          directTextNodes[0].textContent = content;
+          // Remove other direct text nodes to avoid duplication
+          for (let i = 1; i < directTextNodes.length; i++) {
+            const parent = directTextNodes[i].parentNode;
+            if (parent && parent === selected.element) {
+              parent.removeChild(directTextNodes[i]);
+            }
+          }
+        }
+      } else {
+        // No direct text nodes found, but has children
+        // Check if text is primarily in the first child element
+        const firstChild = selected.element.firstElementChild;
+        if (firstChild && firstChild.children.length === 0) {
+          // First child has no children, safe to update its textContent
+          // This handles cases like <div><span>Hello</span></div>
+          firstChild.textContent = content;
+        } else if (firstChild) {
+          // First child has its own children - check if we should update nested text
+          // For safety, only update if the first child's textContent matches what we're replacing
+          const firstChildText = firstChild.textContent || '';
+          const currentTotalText = selected.element.textContent || '';
+          
+          // If the first child contains most/all of the text, update it
+          if (firstChildText.length > 0 && currentTotalText.includes(firstChildText)) {
+            firstChild.textContent = content;
+          } else {
+            // Insert a new text node at the beginning to preserve child structure
+            const textNode = document.createTextNode(content);
+            if (selected.element.firstChild) {
+              selected.element.insertBefore(textNode, selected.element.firstChild);
+            } else {
+              selected.element.appendChild(textNode);
+            }
+          }
+        } else {
+          // No element children, but has other nodes - insert text node
+          const textNode = document.createTextNode(content);
+          if (selected.element.firstChild) {
+            selected.element.insertBefore(textNode, selected.element.firstChild);
+          } else {
+            selected.element.appendChild(textNode);
+          }
+        }
+      }
     }
+
+    // Update the extracted element's textContent for consistency
+    const updatedText = selected.element.textContent || '';
+    if ('textContent' in selected) {
+      (selected as any).textContent = updatedText;
+    }
+
+    onUpdateElement(selected.id, { content });
   };
 
   const handleStyleUpdate = (property: string, value: string) => {
