@@ -8,6 +8,8 @@ export interface App {
   technologies: string[];
   demoUrl?: string;
   githubUrl?: string;
+  isExternal?: boolean; // If true, app is hosted on a different site
+  externalUrl?: string; // URL to the external app (for iframe embedding)
   demoMetrics?: {
     title: string;
     value: string;
@@ -71,6 +73,35 @@ export const apps: App[] = [
       'AI-generated financial insights',
       'Professional PDF reporting',
       'Real-time market data integration'
+    ]
+  },
+  {
+    id: 'ai-trading-coach',
+    title: 'AI Trading Coach',
+    description: 'Intelligent trading guidance powered by AI. Get personalized market insights, trading strategies, and real-time coaching to improve your trading performance.',
+    image: '/ai-trading-coach.png',
+    category: 'Finance',
+    features: [
+      'AI-powered trading insights',
+      'Real-time market analysis',
+      'Personalized coaching',
+      'Strategy recommendations',
+      'Performance tracking'
+    ],
+    technologies: ['React', 'TypeScript', 'AI/ML', 'Firebase'],
+    isExternal: true,
+    externalUrl: 'https://ai-trading-coach-b87dc.web.app/',
+    demoMetrics: [
+      { title: 'Users', value: '500+', change: '+15%' },
+      { title: 'Accuracy', value: '87%' },
+      { title: 'Avg Return', value: '+12.5%' },
+      { title: 'Success Rate', value: '82%' }
+    ],
+    demoHighlights: [
+      'AI-powered market analysis',
+      'Personalized trading strategies',
+      'Real-time coaching and insights',
+      'Performance analytics dashboard'
     ]
   }
 ];

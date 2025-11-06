@@ -9,11 +9,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import AppIframeModal from '@/components/AppIframeModal';
 
 const Apps = () => {
   const [filteredApps, setFilteredApps] = useState<App[]>(apps);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [iframeModalOpen, setIframeModalOpen] = useState(false);
+  const [selectedExternalApp, setSelectedExternalApp] = useState<App | null>(null);
 
   // Scroll to top on mount
   useEffect(() => {
@@ -60,6 +63,19 @@ const Apps = () => {
         duration: 0.5
       }
     }
+  };
+
+  const handleTryDemo = (app: App) => {
+    if (app.isExternal && app.externalUrl) {
+      setSelectedExternalApp(app);
+      setIframeModalOpen(true);
+    }
+  };
+
+  const hasDemo = (app: App) => {
+    return app.isExternal && app.externalUrl || 
+           app.id === 'writing-editor' || 
+           app.id === 'ai-logistics-optimizer-2';
   };
 
   return (
@@ -310,13 +326,24 @@ const Apps = () => {
                     <CardFooter className="pt-0 mt-auto">
                       <div className="w-full flex gap-2">
                         <div className="w-full flex gap-2">
-                          {(app.id === 'writing-editor' || app.id === 'ai-logistics-optimizer-2') ? (
-                            <Button asChild className="flex-1" size="sm">
-                              <Link to={app.demoUrl || `/apps/${app.id}`}>
+                          {hasDemo(app) ? (
+                            app.isExternal && app.externalUrl ? (
+                              <Button 
+                                className="flex-1" 
+                                size="sm"
+                                onClick={() => handleTryDemo(app)}
+                              >
                                 <Play className="h-4 w-4 mr-2" />
                                 Try Demo
-                              </Link>
-                            </Button>
+                              </Button>
+                            ) : (
+                              <Button asChild className="flex-1" size="sm">
+                                <Link to={app.demoUrl || `/apps/${app.id}`}>
+                                  <Play className="h-4 w-4 mr-2" />
+                                  Try Demo
+                                </Link>
+                              </Button>
+                            )
                           ) : (
                             <Button asChild className="flex-1" size="sm">
                               <Link to={`/apps/${app.id}`}>
@@ -352,6 +379,19 @@ const Apps = () => {
           </div>
         </div>
       </section>
+
+      {/* Iframe Modal for External Apps */}
+      {selectedExternalApp && selectedExternalApp.externalUrl && (
+        <AppIframeModal
+          isOpen={iframeModalOpen}
+          onClose={() => {
+            setIframeModalOpen(false);
+            setSelectedExternalApp(null);
+          }}
+          appTitle={selectedExternalApp.title}
+          appUrl={selectedExternalApp.externalUrl!}
+        />
+      )}
     </PageLayout>
   );
 };
