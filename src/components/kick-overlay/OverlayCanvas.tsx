@@ -53,6 +53,8 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [editMode, setEditMode] = useState(false);
   const [extractedElements, setExtractedElements] = useState<ExtractedHTMLElement[]>([]);
+  const [draggingElementId, setDraggingElementId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   // Calculate canvas scale to fit container
   useEffect(() => {
@@ -430,53 +432,88 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
     }
   };
 
-  // Handle dragging extracted HTML elements
-  const handleHTMLElementDrag = (extractedId: string, deltaX: number, deltaY: number) => {
-    // Framer Motion provides deltas in screen/pixel coordinates
-    // We need to convert these to the scaled canvas coordinate system
-    // The canvas has a transform: scale(canvasScale) applied, so screen pixels
-    // need to be divided by the scale to get canvas coordinates
-    const normalizedDeltaX = deltaX / canvasScale;
-    const normalizedDeltaY = deltaY / canvasScale;
+  // Handle dragging extracted HTML elements with proper coordinate normalization
+  const handleHTMLElementDragStart = (extractedId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
 
-    // Update the extracted elements state
-    setExtractedElements((prev) =>
-      prev.map((el) => {
-        if (el.id === extractedId) {
-          return {
-            ...el,
-            rect: new DOMRect(
-              el.rect.x + normalizedDeltaX,
-              el.rect.y + normalizedDeltaY,
-              el.rect.width,
-              el.rect.height
-            ),
-          };
-        }
-        return el;
-      })
-    );
+    if (!canvasContainerRef.current) return;
 
-    // Update the actual HTML element's position in the DOM
+    // Get the canvas bounding rect for coordinate conversion
+    const canvasRect = canvasContainerRef.current.getBoundingClientRect();
+
+    // Get the extracted element
     const extracted = extractedElements.find((el) => el.id === extractedId);
-    if (extracted && extracted.element) {
-      // Get current transform values
-      const currentTransform = extracted.element.style.transform || '';
-      const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+    if (!extracted || !extracted.element) return;
 
-      let currentX = 0;
-      let currentY = 0;
-      if (translateMatch) {
-        currentX = parseFloat(translateMatch[1].trim());
-        currentY = parseFloat(translateMatch[2].trim());
-      }
+    // Calculate mouse position relative to canvas in canvas coordinates (1920x1080 space)
+    const mouseCanvasX = (e.clientX - canvasRect.left) / canvasScale;
+    const mouseCanvasY = (e.clientY - canvasRect.top) / canvasScale;
 
-      // Apply the new position - these are in the scaled coordinate system
-      // The element itself is inside the scaled container, so we apply the delta directly
-      extracted.element.style.position = 'relative';
-      extracted.element.style.transform = `translate(${currentX + normalizedDeltaX}px, ${currentY + normalizedDeltaY}px)`;
+    // Get current element position
+    const currentTransform = extracted.element.style.transform || '';
+    const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+
+    let currentX = 0;
+    let currentY = 0;
+    if (translateMatch) {
+      currentX = parseFloat(translateMatch[1].trim());
+      currentY = parseFloat(translateMatch[2].trim());
     }
+
+    // Calculate offset from element's top-left corner to mouse position
+    const offsetX = mouseCanvasX - (extracted.rect.x + currentX);
+    const offsetY = mouseCanvasY - (extracted.rect.y + currentY);
+
+    setDraggingElementId(extractedId);
+    setDragOffset({ x: offsetX, y: offsetY });
+    onSelectElement(extractedId);
   };
+
+  const handleHTMLElementDragMove = (e: MouseEvent) => {
+    if (!draggingElementId || !canvasContainerRef.current) return;
+
+    const extracted = extractedElements.find((el) => el.id === draggingElementId);
+    if (!extracted || !extracted.element) return;
+
+    // Get the canvas bounding rect for coordinate conversion
+    const canvasRect = canvasContainerRef.current.getBoundingClientRect();
+
+    // Calculate mouse position relative to canvas in canvas coordinates (1920x1080 space)
+    // This is the KEY FIX: normalize screen coordinates to canvas coordinates
+    const mouseCanvasX = (e.clientX - canvasRect.left) / canvasScale;
+    const mouseCanvasY = (e.clientY - canvasRect.top) / canvasScale;
+
+    // Calculate new element position accounting for drag offset
+    const newX = mouseCanvasX - dragOffset.x - extracted.rect.x;
+    const newY = mouseCanvasY - dragOffset.y - extracted.rect.y;
+
+    // Update the HTML element's position
+    extracted.element.style.position = 'relative';
+    extracted.element.style.transform = `translate(${newX}px, ${newY}px)`;
+
+    // Force a re-render to update overlay positions
+    // We need to update the extractedElements state to trigger a re-render
+    setExtractedElements((prev) => [...prev]);
+  };
+
+  const handleHTMLElementDragEnd = () => {
+    setDraggingElementId(null);
+    setDragOffset({ x: 0, y: 0 });
+  };
+
+  // Set up global mouse event listeners for dragging
+  useEffect(() => {
+    if (draggingElementId) {
+      document.addEventListener('mousemove', handleHTMLElementDragMove);
+      document.addEventListener('mouseup', handleHTMLElementDragEnd);
+
+      return () => {
+        document.removeEventListener('mousemove', handleHTMLElementDragMove);
+        document.removeEventListener('mouseup', handleHTMLElementDragEnd);
+      };
+    }
+  }, [draggingElementId, extractedElements, dragOffset, canvasScale]);
 
   // If HTML template exists, render it with edit mode support
   if (config.htmlTemplate) {
@@ -573,24 +610,37 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
           {editMode &&
             extractedElements.map((extracted, index) => {
               const isSelected = selectedElementId === extracted.id;
+              const isDragging = draggingElementId === extracted.id;
               // Higher z-index for selected, and incrementing for others to prevent overlap issues
               const zIndex = isSelected ? 9999 : 1000 + index;
 
-              // Position overlays accounting for canvas scale
+              // Get current transform position
+              let currentX = 0;
+              let currentY = 0;
+              if (extracted.element) {
+                const currentTransform = extracted.element.style.transform || '';
+                const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+                if (translateMatch) {
+                  currentX = parseFloat(translateMatch[1].trim()) || 0;
+                  currentY = parseFloat(translateMatch[2].trim()) || 0;
+                }
+              }
+
+              // Position overlays accounting for canvas scale AND current transform
               // The HTML container is scaled, but overlays are not, so we need to scale the positions
-              const overlayLeft = extracted.rect.x * canvasScale;
-              const overlayTop = extracted.rect.y * canvasScale;
+              const overlayLeft = (extracted.rect.x + currentX) * canvasScale;
+              const overlayTop = (extracted.rect.y + currentY) * canvasScale;
               const overlayWidth = extracted.rect.width * canvasScale;
               const overlayHeight = extracted.rect.height * canvasScale;
 
               return (
-                <motion.div
+                <div
                   key={extracted.id}
-                  className={`absolute border-2 cursor-move ${
+                  className={`absolute border-2 cursor-move transition-colors ${
                     isSelected
                       ? 'border-blue-500 bg-blue-500/10'
                       : 'border-green-500 bg-green-500/5 hover:bg-green-500/10'
-                  }`}
+                  } ${isDragging ? 'opacity-80' : 'opacity-100'}`}
                   style={{
                     left: `${overlayLeft}px`,
                     top: `${overlayTop}px`,
@@ -599,23 +649,11 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
                     pointerEvents: 'auto',
                     zIndex: zIndex,
                   }}
-                  drag
-                  dragMomentum={false}
-                  dragElastic={0}
-                  dragConstraints={canvasContainerRef}
-                  onDragStart={() => onSelectElement(extracted.id)}
-                  onDrag={(_, info) => {
-                    handleHTMLElementDrag(extracted.id, info.delta.x, info.delta.y);
-                  }}
+                  onMouseDown={(e) => handleHTMLElementDragStart(extracted.id, e)}
                   onClick={(e) => {
                     e.stopPropagation();
                     onSelectElement(extracted.id);
                   }}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.2 }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
                 >
                   {/* Selection indicator */}
                   {isSelected && (
@@ -633,7 +671,7 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
                       </span>
                     </div>
                   )}
-                </motion.div>
+                </div>
               );
             })}
           </div>
