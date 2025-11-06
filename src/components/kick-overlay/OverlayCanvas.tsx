@@ -1,9 +1,218 @@
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { Trash2, GripVertical, Video, MessageSquare, Bell, Image, DollarSign, Users, Eye, Edit3, Eye as EyeIcon, Palette, Save, Copy } from 'lucide-react';
+import { Trash2, GripVertical, Video, MessageSquare, Bell, Image, DollarSign, Users, Eye, Edit3, Eye as EyeIcon, Palette, Save, Copy, Grid as GridIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import type { OverlayConfig, OverlayElement } from '@/types/overlay';
 import { motion } from 'framer-motion';
+
+// Coordinate system helper for consistent transformations
+class CanvasCoordinates {
+  constructor(
+    private canvasRect: DOMRect,
+    private canvasScale: number,
+    private canvasWidth: number,
+    private canvasHeight: number
+  ) {}
+
+  // Convert screen coordinates to canvas coordinates
+  screenToCanvas(screenX: number, screenY: number) {
+    return {
+      x: (screenX - this.canvasRect.left) / this.canvasScale,
+      y: (screenY - this.canvasRect.top) / this.canvasScale
+    };
+  }
+
+  // Convert canvas coordinates to screen coordinates
+  canvasToScreen(canvasX: number, canvasY: number) {
+    return {
+      x: canvasX * this.canvasScale + this.canvasRect.left,
+      y: canvasY * this.canvasScale + this.canvasRect.top
+    };
+  }
+
+  // Get element's position in canvas coordinates
+  getElementCanvasPosition(element: HTMLElement) {
+    const rect = element.getBoundingClientRect();
+    return this.screenToCanvas(rect.left, rect.top);
+  }
+
+  // Constrain to canvas bounds
+  constrain(x: number, y: number, width: number, height: number) {
+    return {
+      x: Math.max(0, Math.min(this.canvasWidth - width, x)),
+      y: Math.max(0, Math.min(this.canvasHeight - height, y))
+    };
+  }
+}
+
+// Grid snapping utility
+const snapToGrid = (value: number, gridSize: number, enabled: boolean): number => {
+  if (!enabled || gridSize <= 0) return value;
+  return Math.round(value / gridSize) * gridSize;
+};
+
+// Alignment guide detection
+interface AlignmentGuides {
+  vertical: number[];
+  horizontal: number[];
+}
+
+const ALIGNMENT_THRESHOLD = 5; // pixels
+
+const findAlignmentGuides = (
+  draggingElement: ExtractedHTMLElement,
+  otherElements: ExtractedHTMLElement[],
+  canvasRect: DOMRect,
+  canvasScale: number,
+  threshold: number = ALIGNMENT_THRESHOLD
+): AlignmentGuides => {
+  const guides: AlignmentGuides = { vertical: [], horizontal: [] };
+  if (!draggingElement.element) return guides;
+
+  const dragRect = draggingElement.element.getBoundingClientRect();
+  const dragLeft = (dragRect.left - canvasRect.left) / canvasScale;
+  const dragRight = (dragRect.right - canvasRect.left) / canvasScale;
+  const dragTop = (dragRect.top - canvasRect.top) / canvasScale;
+  const dragBottom = (dragRect.bottom - canvasRect.top) / canvasScale;
+  const dragCenterX = dragLeft + (dragRight - dragLeft) / 2;
+  const dragCenterY = dragTop + (dragBottom - dragTop) / 2;
+
+  // Check alignment with other elements
+  otherElements.forEach(other => {
+    if (other.id === draggingElement.id || !other.element) return;
+    const otherRect = other.element.getBoundingClientRect();
+    const otherLeft = (otherRect.left - canvasRect.left) / canvasScale;
+    const otherRight = (otherRect.right - canvasRect.left) / canvasScale;
+    const otherTop = (otherRect.top - canvasRect.top) / canvasScale;
+    const otherBottom = (otherRect.bottom - canvasRect.top) / canvasScale;
+    const otherCenterX = otherLeft + (otherRight - otherLeft) / 2;
+    const otherCenterY = otherTop + (otherBottom - otherTop) / 2;
+
+    // Check vertical alignment (left, center, right edges)
+    if (Math.abs(dragLeft - otherLeft) < threshold) {
+      guides.vertical.push(otherLeft);
+    }
+    if (Math.abs(dragRight - otherRight) < threshold) {
+      guides.vertical.push(otherRight);
+    }
+    if (Math.abs(dragCenterX - otherCenterX) < threshold) {
+      guides.vertical.push(otherCenterX);
+    }
+
+    // Check horizontal alignment (top, middle, bottom edges)
+    if (Math.abs(dragTop - otherTop) < threshold) {
+      guides.horizontal.push(otherTop);
+    }
+    if (Math.abs(dragBottom - otherBottom) < threshold) {
+      guides.horizontal.push(otherBottom);
+    }
+    if (Math.abs(dragCenterY - otherCenterY) < threshold) {
+      guides.horizontal.push(otherCenterY);
+    }
+  });
+
+  // Remove duplicates
+  guides.vertical = [...new Set(guides.vertical)];
+  guides.horizontal = [...new Set(guides.horizontal)];
+
+  return guides;
+};
+
+// Resize handler types and functions
+interface ResizeState {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+type ResizeHandler = (
+  startState: ResizeState,
+  deltaX: number,
+  deltaY: number
+) => ResizeState;
+
+const resizeHandlers: Record<string, ResizeHandler> = {
+  // Southeast (bottom-right) - simplest, just grow
+  se: (start, dx, dy) => ({
+    x: start.x,
+    y: start.y,
+    width: Math.max(20, start.width + dx),
+    height: Math.max(20, start.height + dy)
+  }),
+
+  // Northwest (top-left) - move origin and adjust size
+  nw: (start, dx, dy) => {
+    const newWidth = Math.max(20, start.width - dx);
+    const newHeight = Math.max(20, start.height - dy);
+    return {
+      width: newWidth,
+      height: newHeight,
+      x: start.x + (start.width - newWidth),
+      y: start.y + (start.height - newHeight)
+    };
+  },
+
+  // Northeast (top-right) - adjust height and move top
+  ne: (start, dx, dy) => {
+    const newHeight = Math.max(20, start.height - dy);
+    return {
+      x: start.x,
+      y: start.y + (start.height - newHeight),
+      width: Math.max(20, start.width + dx),
+      height: newHeight
+    };
+  },
+
+  // Southwest (bottom-left) - adjust width and move left
+  sw: (start, dx, dy) => {
+    const newWidth = Math.max(20, start.width - dx);
+    return {
+      x: start.x + (start.width - newWidth),
+      y: start.y,
+      width: newWidth,
+      height: Math.max(20, start.height + dy)
+    };
+  },
+
+  // North (top edge) - adjust height and move top
+  n: (start, dx, dy) => {
+    const newHeight = Math.max(20, start.height - dy);
+    return {
+      x: start.x,
+      y: start.y + (start.height - newHeight),
+      width: start.width,
+      height: newHeight
+    };
+  },
+
+  // South (bottom edge) - just grow height
+  s: (start, dx, dy) => ({
+    x: start.x,
+    y: start.y,
+    width: start.width,
+    height: Math.max(20, start.height + dy)
+  }),
+
+  // West (left edge) - adjust width and move left
+  w: (start, dx, dy) => {
+    const newWidth = Math.max(20, start.width - dx);
+    return {
+      x: start.x + (start.width - newWidth),
+      y: start.y,
+      width: newWidth,
+      height: start.height
+    };
+  },
+
+  // East (right edge) - just grow width
+  e: (start, dx, dy) => ({
+    x: start.x,
+    y: start.y,
+    width: Math.max(20, start.width + dx),
+    height: start.height
+  })
+};
 
 interface OverlayCanvasProps {
   config: OverlayConfig;
@@ -65,6 +274,13 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
     elementX: 0,
     elementY: 0
   });
+
+  // Grid snapping state
+  const [gridSnapEnabled, setGridSnapEnabled] = useState(true);
+  const [gridSize, setGridSize] = useState(10); // 10px grid by default
+
+  // Alignment guides state
+  const [alignmentGuides, setAlignmentGuides] = useState<AlignmentGuides>({ vertical: [], horizontal: [] });
 
   // Calculate canvas scale to fit container
   useEffect(() => {
@@ -442,37 +658,49 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
     }
   };
 
-  // Handle dragging extracted HTML elements with proper coordinate normalization
-  // KEY FIX for nested elements: always calculate relative to current screen position
+  // Handle dragging extracted HTML elements with absolute positioning
   const handleHTMLElementDragStart = (extractedId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
     if (!canvasContainerRef.current) return;
 
-    // Get the canvas bounding rect for coordinate conversion
     const canvasRect = canvasContainerRef.current.getBoundingClientRect();
-
-    // Get the extracted element
     const extracted = extractedElements.find((el) => el.id === extractedId);
     if (!extracted || !extracted.element) return;
 
-    // Get the element's CURRENT screen position (includes all parent transforms)
-    // This is critical for nested elements!
+    // Create coordinate helper
+    const coords = new CanvasCoordinates(canvasRect, canvasScale, config.canvas.width, config.canvas.height);
+
+    // Store original position for first-time conversion to absolute positioning
+    if (!extracted.element.dataset.convertedToAbsolute) {
+      const elementRect = extracted.element.getBoundingClientRect();
+      const canvasPos = coords.screenToCanvas(elementRect.left, elementRect.top);
+
+      // Save original computed position
+      extracted.element.dataset.originalLeft = String(canvasPos.x);
+      extracted.element.dataset.originalTop = String(canvasPos.y);
+      extracted.element.dataset.originalWidth = String(elementRect.width / canvasScale);
+      extracted.element.dataset.originalHeight = String(elementRect.height / canvasScale);
+
+      // Convert to absolute positioning
+      extracted.element.style.position = 'absolute';
+      extracted.element.style.left = `${canvasPos.x}px`;
+      extracted.element.style.top = `${canvasPos.y}px`;
+      extracted.element.style.width = `${elementRect.width / canvasScale}px`;
+      extracted.element.style.height = `${elementRect.height / canvasScale}px`;
+      extracted.element.style.transform = ''; // Clear any transforms
+      extracted.element.dataset.convertedToAbsolute = 'true';
+    }
+
+    // Get element's position in canvas coordinates
     const elementRect = extracted.element.getBoundingClientRect();
+    const mouseCanvas = coords.screenToCanvas(e.clientX, e.clientY);
+    const elementCanvas = coords.screenToCanvas(elementRect.left, elementRect.top);
 
-    // Calculate mouse position relative to canvas in canvas coordinates (1920x1080 space)
-    const mouseCanvasX = (e.clientX - canvasRect.left) / canvasScale;
-    const mouseCanvasY = (e.clientY - canvasRect.top) / canvasScale;
-
-    // Calculate the element's current position in canvas coordinates
-    const elementCanvasX = (elementRect.left - canvasRect.left) / canvasScale;
-    const elementCanvasY = (elementRect.top - canvasRect.top) / canvasScale;
-
-    // Store the offset from the element's top-left corner to the mouse
-    // This keeps the grab point consistent during the drag
-    const offsetX = mouseCanvasX - elementCanvasX;
-    const offsetY = mouseCanvasY - elementCanvasY;
+    // Store offset from element's top-left to mouse
+    const offsetX = mouseCanvas.x - elementCanvas.x;
+    const offsetY = mouseCanvas.y - elementCanvas.y;
 
     setDraggingElementId(extractedId);
     setDragOffset({ x: offsetX, y: offsetY });
@@ -485,51 +713,89 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
     const extracted = extractedElements.find((el) => el.id === draggingElementId);
     if (!extracted || !extracted.element) return;
 
-    // Get the canvas bounding rect for coordinate conversion
     const canvasRect = canvasContainerRef.current.getBoundingClientRect();
+    const coords = new CanvasCoordinates(canvasRect, canvasScale, config.canvas.width, config.canvas.height);
 
-    // Calculate mouse position relative to canvas in canvas coordinates (1920x1080 space)
-    const mouseCanvasX = (e.clientX - canvasRect.left) / canvasScale;
-    const mouseCanvasY = (e.clientY - canvasRect.top) / canvasScale;
+    // Get mouse position in canvas coordinates
+    const mouseCanvas = coords.screenToCanvas(e.clientX, e.clientY);
 
-    // Calculate where we WANT the element to be (accounting for grab offset)
-    const desiredCanvasX = mouseCanvasX - dragOffset.x;
-    const desiredCanvasY = mouseCanvasY - dragOffset.y;
+    // Calculate desired position (accounting for grab offset)
+    let desiredX = mouseCanvas.x - dragOffset.x;
+    let desiredY = mouseCanvas.y - dragOffset.y;
 
-    // Get the element's CURRENT screen position (includes all parent transforms and positioning)
-    // This is the KEY FIX for nested elements - we calculate from where it actually is NOW
-    const currentElementRect = extracted.element.getBoundingClientRect();
-    const currentCanvasX = (currentElementRect.left - canvasRect.left) / canvasScale;
-    const currentCanvasY = (currentElementRect.top - canvasRect.top) / canvasScale;
+    // Get element dimensions
+    const elementRect = extracted.element.getBoundingClientRect();
+    const elementWidth = elementRect.width / canvasScale;
+    const elementHeight = elementRect.height / canvasScale;
 
-    // Calculate the delta we need to move from current position to desired position
-    const deltaX = desiredCanvasX - currentCanvasX;
-    const deltaY = desiredCanvasY - currentCanvasY;
+    // Detect alignment guides
+    const guides = findAlignmentGuides(extracted, extractedElements, canvasRect, canvasScale);
+    setAlignmentGuides(guides);
 
-    // Get the element's existing transform values
-    const currentTransform = extracted.element.style.transform || '';
-    const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+    // Snap to alignment guides if close
+    if (guides.vertical.length > 0) {
+      const elementLeft = desiredX;
+      const elementRight = desiredX + elementWidth;
+      const elementCenterX = desiredX + elementWidth / 2;
 
-    let currentTransformX = 0;
-    let currentTransformY = 0;
-    if (translateMatch) {
-      currentTransformX = parseFloat(translateMatch[1].trim()) || 0;
-      currentTransformY = parseFloat(translateMatch[2].trim()) || 0;
+      for (const guideX of guides.vertical) {
+        if (Math.abs(elementLeft - guideX) < ALIGNMENT_THRESHOLD) {
+          desiredX = guideX;
+          break;
+        }
+        if (Math.abs(elementRight - guideX) < ALIGNMENT_THRESHOLD) {
+          desiredX = guideX - elementWidth;
+          break;
+        }
+        if (Math.abs(elementCenterX - guideX) < ALIGNMENT_THRESHOLD) {
+          desiredX = guideX - elementWidth / 2;
+          break;
+        }
+      }
     }
 
-    // Apply the delta to the existing transform
-    // This works for both top-level and nested elements because we're always
-    // calculating the delta from the element's actual current screen position
-    extracted.element.style.position = 'relative';
-    extracted.element.style.transform = `translate(${currentTransformX + deltaX}px, ${currentTransformY + deltaY}px)`;
+    if (guides.horizontal.length > 0) {
+      const elementTop = desiredY;
+      const elementBottom = desiredY + elementHeight;
+      const elementCenterY = desiredY + elementHeight / 2;
 
-    // Force a re-render to update overlay positions
+      for (const guideY of guides.horizontal) {
+        if (Math.abs(elementTop - guideY) < ALIGNMENT_THRESHOLD) {
+          desiredY = guideY;
+          break;
+        }
+        if (Math.abs(elementBottom - guideY) < ALIGNMENT_THRESHOLD) {
+          desiredY = guideY - elementHeight;
+          break;
+        }
+        if (Math.abs(elementCenterY - guideY) < ALIGNMENT_THRESHOLD) {
+          desiredY = guideY - elementHeight / 2;
+          break;
+        }
+      }
+    }
+
+    // Apply grid snapping
+    desiredX = snapToGrid(desiredX, gridSize, gridSnapEnabled);
+    desiredY = snapToGrid(desiredY, gridSize, gridSnapEnabled);
+
+    // Constrain to canvas bounds
+    const constrained = coords.constrain(desiredX, desiredY, elementWidth, elementHeight);
+
+    // Apply absolute positioning
+    extracted.element.style.position = 'absolute';
+    extracted.element.style.left = `${constrained.x}px`;
+    extracted.element.style.top = `${constrained.y}px`;
+    extracted.element.style.transform = ''; // Clear any transforms
+
+    // Force re-render to update overlays
     setExtractedElements((prev) => [...prev]);
   };
 
   const handleHTMLElementDragEnd = () => {
     setDraggingElementId(null);
     setDragOffset({ x: 0, y: 0 });
+    setAlignmentGuides({ vertical: [], horizontal: [] }); // Clear guides when drag ends
   };
 
   // Handle deleting an HTML element
@@ -563,23 +829,20 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
     clonedElement.setAttribute('data-id', newId);
     clonedElement.setAttribute('data-editable', 'true');
 
-    // Get the current transform of the original element
-    const currentTransform = extracted.element.style.transform || '';
-    const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+    // Get original element's position
+    const originalLeft = parseFloat(extracted.element.style.left) || 0;
+    const originalTop = parseFloat(extracted.element.style.top) || 0;
 
-    let currentX = 0;
-    let currentY = 0;
-    if (translateMatch) {
-      currentX = parseFloat(translateMatch[1].trim()) || 0;
-      currentY = parseFloat(translateMatch[2].trim()) || 0;
-    }
+    // Offset the duplicate by 20px so it's visible
+    const offsetX = originalLeft + 20;
+    const offsetY = originalTop + 20;
 
-    // Offset the duplicate by 20px so it's visible and not directly on top
-    const offsetX = currentX + 20;
-    const offsetY = currentY + 20;
-
-    clonedElement.style.position = 'relative';
-    clonedElement.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+    // Set up absolute positioning for the clone
+    clonedElement.style.position = 'absolute';
+    clonedElement.style.left = `${offsetX}px`;
+    clonedElement.style.top = `${offsetY}px`;
+    clonedElement.style.transform = ''; // Clear any transforms
+    clonedElement.dataset.convertedToAbsolute = 'true';
 
     // Insert the cloned element right after the original in the DOM
     if (extracted.element.parentNode) {
@@ -626,9 +889,14 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
     const extracted = extractedElements.find((el) => el.id === extractedId);
     if (!extracted || !extracted.element) return;
 
-    // Get canvas and element rectangles
     const canvasRect = canvasContainerRef.current.getBoundingClientRect();
+    const coords = new CanvasCoordinates(canvasRect, canvasScale, config.canvas.width, config.canvas.height);
+
+    // Get element's current position and size in canvas coordinates
     const elementRect = extracted.element.getBoundingClientRect();
+    const elementPos = coords.screenToCanvas(elementRect.left, elementRect.top);
+    const elementWidth = elementRect.width / canvasScale;
+    const elementHeight = elementRect.height / canvasScale;
 
     // Store initial state
     setResizingElementId(extractedId);
@@ -636,10 +904,10 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
     setHtmlResizeStart({
       x: e.clientX,
       y: e.clientY,
-      width: elementRect.width / canvasScale,
-      height: elementRect.height / canvasScale,
-      elementX: (elementRect.left - canvasRect.left) / canvasScale,
-      elementY: (elementRect.top - canvasRect.top) / canvasScale,
+      width: elementWidth,
+      height: elementHeight,
+      elementX: elementPos.x,
+      elementY: elementPos.y
     });
     onSelectElement(extractedId);
   };
@@ -650,68 +918,53 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
     const extracted = extractedElements.find((el) => el.id === resizingElementId);
     if (!extracted || !extracted.element) return;
 
+    const canvasRect = canvasContainerRef.current.getBoundingClientRect();
+    const coords = new CanvasCoordinates(canvasRect, canvasScale, config.canvas.width, config.canvas.height);
+
     // Calculate mouse delta in canvas coordinates
     const deltaX = (e.clientX - htmlResizeStart.x) / canvasScale;
     const deltaY = (e.clientY - htmlResizeStart.y) / canvasScale;
 
-    // Get current transform
-    const currentTransform = extracted.element.style.transform || '';
-    const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
-    let currentTransformX = 0;
-    let currentTransformY = 0;
-    if (translateMatch) {
-      currentTransformX = parseFloat(translateMatch[1].trim()) || 0;
-      currentTransformY = parseFloat(translateMatch[2].trim()) || 0;
+    // Get the resize handler function for this handle
+    const handler = resizeHandlers[resizeHandle];
+    if (!handler) return;
+
+    // Calculate new state using the handler
+    const startState: ResizeState = {
+      x: htmlResizeStart.elementX,
+      y: htmlResizeStart.elementY,
+      width: htmlResizeStart.width,
+      height: htmlResizeStart.height
+    };
+
+    let newState = handler(startState, deltaX, deltaY);
+
+    // Apply grid snapping
+    newState.x = snapToGrid(newState.x, gridSize, gridSnapEnabled);
+    newState.y = snapToGrid(newState.y, gridSize, gridSnapEnabled);
+    newState.width = snapToGrid(newState.width, gridSize, gridSnapEnabled);
+    newState.height = snapToGrid(newState.height, gridSize, gridSnapEnabled);
+
+    // Constrain to canvas bounds
+    const constrained = coords.constrain(newState.x, newState.y, newState.width, newState.height);
+
+    // Adjust width/height if position was constrained
+    if (constrained.x !== newState.x) {
+      newState.width = newState.width + (newState.x - constrained.x);
     }
-
-    let newWidth = htmlResizeStart.width;
-    let newHeight = htmlResizeStart.height;
-    let newTransformX = currentTransformX;
-    let newTransformY = currentTransformY;
-
-    // Calculate new dimensions based on which handle is being dragged
-    switch (resizeHandle) {
-      case 'nw': // Top-left corner
-        newWidth = Math.max(20, htmlResizeStart.width - deltaX);
-        newHeight = Math.max(20, htmlResizeStart.height - deltaY);
-        newTransformX = currentTransformX + (htmlResizeStart.width - newWidth);
-        newTransformY = currentTransformY + (htmlResizeStart.height - newHeight);
-        break;
-      case 'ne': // Top-right corner
-        newWidth = Math.max(20, htmlResizeStart.width + deltaX);
-        newHeight = Math.max(20, htmlResizeStart.height - deltaY);
-        newTransformY = currentTransformY + (htmlResizeStart.height - newHeight);
-        break;
-      case 'sw': // Bottom-left corner
-        newWidth = Math.max(20, htmlResizeStart.width - deltaX);
-        newHeight = Math.max(20, htmlResizeStart.height + deltaY);
-        newTransformX = currentTransformX + (htmlResizeStart.width - newWidth);
-        break;
-      case 'se': // Bottom-right corner
-        newWidth = Math.max(20, htmlResizeStart.width + deltaX);
-        newHeight = Math.max(20, htmlResizeStart.height + deltaY);
-        break;
-      case 'n': // Top edge
-        newHeight = Math.max(20, htmlResizeStart.height - deltaY);
-        newTransformY = currentTransformY + (htmlResizeStart.height - newHeight);
-        break;
-      case 's': // Bottom edge
-        newHeight = Math.max(20, htmlResizeStart.height + deltaY);
-        break;
-      case 'w': // Left edge
-        newWidth = Math.max(20, htmlResizeStart.width - deltaX);
-        newTransformX = currentTransformX + (htmlResizeStart.width - newWidth);
-        break;
-      case 'e': // Right edge
-        newWidth = Math.max(20, htmlResizeStart.width + deltaX);
-        break;
+    if (constrained.y !== newState.y) {
+      newState.height = newState.height + (newState.y - constrained.y);
     }
+    newState.x = constrained.x;
+    newState.y = constrained.y;
 
-    // Apply new dimensions and position
-    extracted.element.style.width = `${newWidth}px`;
-    extracted.element.style.height = `${newHeight}px`;
-    extracted.element.style.position = 'relative';
-    extracted.element.style.transform = `translate(${newTransformX}px, ${newTransformY}px)`;
+    // Apply absolute positioning and new dimensions
+    extracted.element.style.position = 'absolute';
+    extracted.element.style.left = `${newState.x}px`;
+    extracted.element.style.top = `${newState.y}px`;
+    extracted.element.style.width = `${newState.width}px`;
+    extracted.element.style.height = `${newState.height}px`;
+    extracted.element.style.transform = ''; // Clear any transforms
 
     // Force re-render to update overlays
     setExtractedElements((prev) => [...prev]);
@@ -795,6 +1048,18 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
             )}
             {editMode && (
               <Button
+                onClick={() => setGridSnapEnabled(!gridSnapEnabled)}
+                size="sm"
+                variant="outline"
+                className={gridSnapEnabled ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200 hover:bg-indigo-600/30' : 'border-gray-600 text-gray-400'}
+                title={`Grid snapping: ${gridSnapEnabled ? 'ON' : 'OFF'} (${gridSize}px)`}
+              >
+                <GridIcon className="w-4 h-4 mr-2" />
+                Snap {gridSnapEnabled ? 'ON' : 'OFF'}
+              </Button>
+            )}
+            {editMode && (
+              <Button
                 onClick={saveModifiedHTML}
                 size="sm"
                 variant="outline"
@@ -865,6 +1130,26 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
                 __html: `<style>${config.cssTemplate || ''}</style>${config.htmlTemplate}`,
               }}
             />
+          )}
+
+          {/* Alignment Guides */}
+          {editMode && (draggingElementId || resizingElementId) && (
+            <>
+              {alignmentGuides.vertical.map((x, i) => (
+                <div
+                  key={`v-${i}`}
+                  className="absolute top-0 bottom-0 w-px bg-blue-400 pointer-events-none z-[10000]"
+                  style={{ left: `${x * canvasScale}px` }}
+                />
+              ))}
+              {alignmentGuides.horizontal.map((y, i) => (
+                <div
+                  key={`h-${i}`}
+                  className="absolute left-0 right-0 h-px bg-blue-400 pointer-events-none z-[10000]"
+                  style={{ top: `${y * canvasScale}px` }}
+                />
+              ))}
+            </>
           )}
 
           {/* Draggable Overlays for Edit Mode */}
