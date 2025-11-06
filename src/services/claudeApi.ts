@@ -1,6 +1,16 @@
 interface ClaudeMessage {
   role: 'user' | 'assistant';
-  content: string;
+  content: string | ContentBlock[];
+}
+
+interface ContentBlock {
+  type: 'text' | 'image';
+  text?: string;
+  source?: {
+    type: 'base64';
+    media_type: string;
+    data: string;
+  };
 }
 
 interface ClaudeRequest {
@@ -112,10 +122,63 @@ class ClaudeAPIService {
       model: this.defaultModel
     };
   }
+
+  // Vision analysis method
+  async analyzeImage(
+    imageData: string,
+    prompt: string,
+    systemPrompt?: string
+  ): Promise<string> {
+    // Extract base64 data and media type from data URL
+    const matches = imageData.match(/^data:([^;]+);base64,(.+)$/);
+    if (!matches) {
+      throw new Error('Invalid image data format');
+    }
+
+    const mediaType = matches[1];
+    const base64Data = matches[2];
+
+    const content: ContentBlock[] = [
+      {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: mediaType,
+          data: base64Data,
+        },
+      },
+      {
+        type: 'text',
+        text: prompt,
+      },
+    ];
+
+    const messages: ClaudeMessage[] = [
+      { role: 'user', content }
+    ];
+
+    const requestBody: ClaudeRequest = {
+      model: 'claude-3-sonnet-20240229', // Vision requires Claude 3
+      max_tokens: 2000,
+      messages,
+      ...(systemPrompt && { system: systemPrompt })
+    };
+
+    try {
+      const response = await this.makeRequest(requestBody);
+      if (response?.text && typeof response.text === 'string') {
+        return response.text;
+      }
+      throw new Error('No response text received from backend');
+    } catch (error) {
+      console.error('Error in Claude vision analysis:', error);
+      throw error;
+    }
+  }
 }
 
 // Create and export a singleton instance
 export const claudeAPI = new ClaudeAPIService();
 
 // Export types for use in components
-export type { ClaudeMessage, ClaudeRequest, ClaudeResponse };
+export type { ClaudeMessage, ClaudeRequest, ClaudeResponse, ContentBlock };
