@@ -108,6 +108,44 @@ export default function KickOverlayGenerator() {
 
   // Generate HTML content for export
   const generateOverlayHTML = (config: OverlayConfig): string => {
+    // If HTML template exists, use it directly (preserves exact design)
+    if (config.htmlTemplate) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(config.htmlTemplate, 'text/html');
+      
+      // If it's a full HTML document, return as-is (with any additional CSS)
+      if (doc.documentElement.tagName === 'HTML') {
+        if (config.cssTemplate) {
+          const styleEl = doc.createElement('style');
+          styleEl.textContent = config.cssTemplate;
+          if (doc.head) {
+            doc.head.appendChild(styleEl);
+          } else {
+            const head = doc.createElement('head');
+            head.appendChild(styleEl);
+            doc.documentElement.insertBefore(head, doc.documentElement.firstChild);
+          }
+        }
+        return `<!DOCTYPE html>${doc.documentElement.outerHTML}`;
+      }
+      
+      // Otherwise wrap in full HTML structure
+      const allCSS = config.cssTemplate || '';
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=${config.canvas.width}, height=${config.canvas.height}">
+  <title>${config.name}</title>
+  ${allCSS ? `<style>${allCSS}</style>` : ''}
+</head>
+<body>
+  ${config.htmlTemplate}
+</body>
+</html>`;
+    }
+    
+    // Fall back to element-based generation
     const elementsHTML = config.elements
       .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
       .map(el => {
@@ -226,10 +264,13 @@ export default function KickOverlayGenerator() {
             <div className="mb-6">
               <Card className="bg-gray-800/50 border-purple-500/30 backdrop-blur-sm">
                 <AIOverlayGenerator
-                  onGenerate={(elements) => {
+                  onGenerate={(elements, htmlTemplate, cssTemplate) => {
                     setOverlayConfig(prev => ({
                       ...prev,
                       elements: [...prev.elements, ...elements],
+                      // Store HTML/CSS templates if provided (for HTML template mode)
+                      ...(htmlTemplate && { htmlTemplate }),
+                      ...(cssTemplate && { cssTemplate }),
                     }));
                     setShowAIGenerator(false);
                   }}
