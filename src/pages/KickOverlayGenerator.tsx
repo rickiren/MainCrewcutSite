@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import PageLayout from '@/components/PageLayout';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,6 +9,7 @@ import { ElementPanel } from '@/components/kick-overlay/ElementPanel';
 import { StyleCustomizer } from '@/components/kick-overlay/StyleCustomizer';
 import { AIOverlayGenerator } from '@/components/kick-overlay/AIOverlayGenerator';
 import { TemplateSelector } from '@/components/kick-overlay/TemplateSelector';
+import { HTMLElementEditor } from '@/components/kick-overlay/HTMLElementEditor';
 import type { OverlayConfig, OverlayElement, OverlayTheme } from '@/types/overlay';
 import { OVERLAY_THEMES, CANVAS_PRESETS } from '@/types/overlay';
 
@@ -28,7 +29,22 @@ export default function KickOverlayGenerator() {
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('elements');
   const [showAIGenerator, setShowAIGenerator] = useState(false);
+  const [selectedHTMLElement, setSelectedHTMLElement] = useState<HTMLElement | null>(null);
+  const [isHTMLEditMode, setIsHTMLEditMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Track when user selects an HTML element (IDs starting with 'html-')
+  useEffect(() => {
+    if (selectedElementId && selectedElementId.startsWith('html-')) {
+      setIsHTMLEditMode(true);
+      // Find the HTML element in the DOM
+      const htmlElement = document.querySelector(`[data-extracted-id="${selectedElementId}"]`) as HTMLElement;
+      setSelectedHTMLElement(htmlElement);
+    } else {
+      setIsHTMLEditMode(false);
+      setSelectedHTMLElement(null);
+    }
+  }, [selectedElementId]);
 
   // Handle HTML file upload
   const handleHTMLFileUpload = (file: File) => {

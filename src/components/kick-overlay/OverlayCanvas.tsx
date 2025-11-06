@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Trash2, GripVertical, Video, MessageSquare, Bell, Image, DollarSign, Users, Eye } from 'lucide-react';
+import { Trash2, GripVertical, Video, MessageSquare, Bell, Image, DollarSign, Users, Eye, Edit3, Eye as EyeIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { OverlayConfig, OverlayElement } from '@/types/overlay';
 import { motion } from 'framer-motion';
@@ -10,6 +10,18 @@ interface OverlayCanvasProps {
   onSelectElement: (id: string | null) => void;
   onUpdateElement: (id: string, updates: Partial<OverlayElement>) => void;
   onRemoveElement: (id: string) => void;
+  onHTMLElementUpdate?: (elementId: string, property: string, value: string) => void;
+  onHTMLElementContentUpdate?: (elementId: string, content: string) => void;
+  selectedHTMLElement?: HTMLElement | null;
+}
+
+interface ExtractedHTMLElement {
+  id: string;
+  element: HTMLElement;
+  tagName: string;
+  textContent: string;
+  rect: DOMRect;
+  computedStyle: CSSStyleDeclaration;
 }
 
 export function OverlayCanvas({
@@ -21,11 +33,14 @@ export function OverlayCanvas({
 }: OverlayCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const htmlContainerRef = useRef<HTMLDivElement>(null);
   const [canvasScale, setCanvasScale] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [editMode, setEditMode] = useState(false);
+  const [extractedElements, setExtractedElements] = useState<ExtractedHTMLElement[]>([]);
 
   // Calculate canvas scale to fit container
   useEffect(() => {
@@ -227,9 +242,9 @@ export function OverlayCanvas({
 </html>`;
   };
 
-  // Handle iframe loading for HTML templates
+  // Handle iframe loading for HTML templates (preview mode)
   useEffect(() => {
-    if (config.htmlTemplate && iframeRef.current) {
+    if (config.htmlTemplate && iframeRef.current && !editMode) {
       const htmlContent = generateHTMLContent();
       const iframe = iframeRef.current;
       const blob = new Blob([htmlContent], { type: 'text/html' });
@@ -240,9 +255,101 @@ export function OverlayCanvas({
         URL.revokeObjectURL(url);
       };
     }
-  }, [config.htmlTemplate, config.cssTemplate, config.canvas.width, config.canvas.height]);
+  }, [config.htmlTemplate, config.cssTemplate, config.canvas.width, config.canvas.height, editMode]);
 
-  // If HTML template exists, render it in an iframe
+  // Extract elements from HTML when entering edit mode
+  const extractElementsFromHTML = () => {
+    if (!htmlContainerRef.current) return;
+
+    const extracted: ExtractedHTMLElement[] = [];
+    const selectorsToExtract = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'button', 'a', 'span', 'label'];
+
+    selectorsToExtract.forEach((selector) => {
+      const elements = htmlContainerRef.current?.querySelectorAll(selector);
+      elements?.forEach((el, index) => {
+        const htmlEl = el as HTMLElement;
+        const text = htmlEl.textContent?.trim();
+
+        // Only extract elements with meaningful text and no complex children
+        if (text && text.length > 0 && text.length < 200 && htmlEl.children.length === 0) {
+          const rect = htmlEl.getBoundingClientRect();
+          const containerRect = htmlContainerRef.current?.getBoundingClientRect();
+
+          if (rect && containerRect) {
+            extracted.push({
+              id: `html-${selector}-${index}-${Date.now()}`,
+              element: htmlEl,
+              tagName: selector,
+              textContent: text,
+              rect: new DOMRect(
+                rect.left - containerRect.left,
+                rect.top - containerRect.top,
+                rect.width,
+                rect.height
+              ),
+              computedStyle: window.getComputedStyle(htmlEl),
+            });
+          }
+        }
+      });
+    });
+
+    setExtractedElements(extracted);
+  };
+
+  // Toggle edit mode
+  const toggleEditMode = () => {
+    setEditMode(!editMode);
+    if (!editMode) {
+      // Entering edit mode - extract elements after a short delay to let HTML render
+      setTimeout(() => {
+        extractElementsFromHTML();
+      }, 100);
+    } else {
+      // Exiting edit mode - clear extracted elements
+      setExtractedElements([]);
+      onSelectElement(null);
+    }
+  };
+
+  // Handle dragging extracted HTML elements
+  const handleHTMLElementDrag = (extractedId: string, deltaX: number, deltaY: number) => {
+    setExtractedElements((prev) =>
+      prev.map((el) => {
+        if (el.id === extractedId) {
+          return {
+            ...el,
+            rect: new DOMRect(
+              el.rect.x + deltaX,
+              el.rect.y + deltaY,
+              el.rect.width,
+              el.rect.height
+            ),
+          };
+        }
+        return el;
+      })
+    );
+
+    // Update the actual HTML element's position
+    const extracted = extractedElements.find((el) => el.id === extractedId);
+    if (extracted && extracted.element) {
+      const currentTransform = extracted.element.style.transform || '';
+      const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+
+      let currentX = 0;
+      let currentY = 0;
+      if (translateMatch) {
+        currentX = parseFloat(translateMatch[1]);
+        currentY = parseFloat(translateMatch[2]);
+      }
+
+      extracted.element.style.position = 'relative';
+      extracted.element.style.transform = `translate(${currentX + deltaX}px, ${currentY + deltaY}px)`;
+    }
+  };
+
+  // If HTML template exists, render it with edit mode support
   if (config.htmlTemplate) {
     return (
       <div ref={containerRef} className="w-full h-full min-h-[500px] flex flex-col items-center">
@@ -252,13 +359,35 @@ export function OverlayCanvas({
             Resolution: {config.canvas.width} × {config.canvas.height}px
             {canvasScale < 1 && ` (${Math.round(canvasScale * 100)}% scale)`}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span className="px-2 py-1 bg-purple-600/20 text-purple-300 rounded text-xs">HTML Template Mode</span>
-            <span>Elements: {config.elements.length}</span>
+            {editMode && (
+              <span className="px-2 py-1 bg-green-600/20 text-green-300 rounded text-xs">
+                {extractedElements.length} Editable Elements
+              </span>
+            )}
+            <Button
+              onClick={toggleEditMode}
+              size="sm"
+              variant={editMode ? 'default' : 'outline'}
+              className={editMode ? 'bg-green-600 hover:bg-green-700' : 'border-gray-600'}
+            >
+              {editMode ? (
+                <>
+                  <EyeIcon className="w-4 h-4 mr-2" />
+                  Preview Mode
+                </>
+              ) : (
+                <>
+                  <Edit3 className="w-4 h-4 mr-2" />
+                  Edit Mode
+                </>
+              )}
+            </Button>
           </div>
         </div>
 
-        {/* HTML Preview in iframe */}
+        {/* HTML Content */}
         <div
           className="relative bg-gray-900 border-2 border-gray-700 rounded-lg shadow-2xl overflow-hidden"
           style={{
@@ -266,18 +395,204 @@ export function OverlayCanvas({
             height: `${canvasHeight}px`,
           }}
         >
-          <iframe
-            ref={iframeRef}
-            className="border-0"
-            style={{
-              width: `${config.canvas.width}px`,
-              height: `${config.canvas.height}px`,
-              transform: `scale(${canvasScale})`,
-              transformOrigin: 'top left',
-            }}
-            title="Overlay Preview"
-          />
+          {/* Preview Mode: Show in iframe */}
+          {!editMode && (
+            <iframe
+              ref={iframeRef}
+              className="border-0"
+              style={{
+                width: `${config.canvas.width}px`,
+                height: `${config.canvas.height}px`,
+                transform: `scale(${canvasScale})`,
+                transformOrigin: 'top left',
+              }}
+              title="Overlay Preview"
+            />
+          )}
+
+          {/* Edit Mode: Show as HTML with draggable overlays */}
+          {editMode && (
+            <div
+              ref={htmlContainerRef}
+              className="w-full h-full relative overflow-auto"
+              style={{
+                transform: `scale(${canvasScale})`,
+                transformOrigin: 'top left',
+                width: `${config.canvas.width}px`,
+                height: `${config.canvas.height}px`,
+              }}
+              dangerouslySetInnerHTML={{
+                __html: `<style>${config.cssTemplate || ''}</style>${config.htmlTemplate}`,
+              }}
+            />
+          )}
+
+          {/* Draggable Overlays for Edit Mode */}
+          {editMode &&
+            extractedElements.map((extracted) => {
+              const isSelected = selectedElementId === extracted.id;
+              return (
+                <motion.div
+                  key={extracted.id}
+                  className={`absolute border-2 cursor-move ${
+                    isSelected
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-green-500 bg-green-500/5 hover:bg-green-500/10'
+                  }`}
+                  style={{
+                    left: `${extracted.rect.x}px`,
+                    top: `${extracted.rect.y}px`,
+                    width: `${extracted.rect.width}px`,
+                    height: `${extracted.rect.height}px`,
+                    pointerEvents: 'auto',
+                  }}
+                  drag
+                  dragMomentum={false}
+                  dragElastic={0}
+                  onDragStart={() => onSelectElement(extracted.id)}
+                  onDrag={(_, info) => {
+                    handleHTMLElementDrag(extracted.id, info.delta.x, info.delta.y);
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectElement(extracted.id);
+                  }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.2 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  {/* Selection indicator */}
+                  {isSelected && (
+                    <div className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap flex items-center gap-2 z-10">
+                      <GripVertical className="w-3 h-3" />
+                      {extracted.tagName}: "{extracted.textContent.substring(0, 20)}..."
+                    </div>
+                  )}
+
+                  {/* Helper text for non-selected elements */}
+                  {!isSelected && (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                      <span className="text-xs text-green-600 font-medium bg-white/90 px-2 py-1 rounded">
+                        Click to select & drag
+                      </span>
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })}
         </div>
+
+        {/* Helper text */}
+        {editMode && extractedElements.length === 0 && (
+          <div className="mt-4 text-center text-sm text-gray-400">
+            <p>No editable elements detected. Switch to Edit Mode to start customizing.</p>
+          </div>
+        )}
+
+        {/* Selected Element Editor */}
+        {editMode && selectedElementId && extractedElements.length > 0 && (() => {
+          const selected = extractedElements.find((el) => el.id === selectedElementId);
+          if (!selected) return null;
+
+          const handleUpdate = (updates: Partial<CSSStyleDeclaration>) => {
+            Object.entries(updates).forEach(([property, value]) => {
+              if (selected.element && value) {
+                (selected.element.style as any)[property] = value;
+              }
+            });
+          };
+
+          const handleContentUpdate = (content: string) => {
+            if (selected.element) {
+              selected.element.textContent = content;
+            }
+          };
+
+          return (
+            <div className="mt-6">
+              <Card className="bg-gray-800/50 border-gray-700">
+                <div className="p-4 border-b border-gray-700">
+                  <h3 className="text-lg font-semibold text-white">Element Properties</h3>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Editing: <span className="text-purple-300 font-mono">{selected.tagName}</span>
+                  </p>
+                </div>
+                <div className="max-h-[400px] overflow-y-auto">
+                  <div className="p-4 space-y-4">
+                    {/* Text Content */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Text Content</label>
+                      <textarea
+                        defaultValue={selected.textContent}
+                        onBlur={(e) => handleContentUpdate(e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-md text-white text-sm min-h-[80px]"
+                      />
+                    </div>
+
+                    {/* Font Size */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Font Size (px)</label>
+                      <input
+                        type="number"
+                        defaultValue={parseInt(selected.computedStyle.fontSize)}
+                        onChange={(e) => handleUpdate({ fontSize: `${e.target.value}px` })}
+                        className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-md text-white text-sm"
+                      />
+                    </div>
+
+                    {/* Text Color */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Text Color</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          defaultValue={selected.computedStyle.color || '#000000'}
+                          onChange={(e) => handleUpdate({ color: e.target.value })}
+                          className="w-20 h-10 bg-gray-700/50 border border-gray-600 rounded-md cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          defaultValue={selected.computedStyle.color}
+                          onChange={(e) => handleUpdate({ color: e.target.value })}
+                          className="flex-1 px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-md text-white text-sm font-mono"
+                          placeholder="#000000"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Font Weight */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Font Weight</label>
+                      <select
+                        defaultValue={selected.computedStyle.fontWeight}
+                        onChange={(e) => handleUpdate({ fontWeight: e.target.value })}
+                        className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-md text-white text-sm"
+                      >
+                        <option value="300">Light</option>
+                        <option value="400">Normal</option>
+                        <option value="500">Medium</option>
+                        <option value="600">Semibold</option>
+                        <option value="700">Bold</option>
+                        <option value="800">Extra Bold</option>
+                      </select>
+                    </div>
+
+                    <div className="bg-blue-600/10 border border-blue-600/30 rounded-lg p-3 text-xs text-blue-300">
+                      <p className="font-medium mb-1">💡 Quick Tips:</p>
+                      <ul className="space-y-1 text-blue-200/80">
+                        <li>• Changes apply instantly to the preview</li>
+                        <li>• Drag the blue outline to move the element</li>
+                        <li>• Export HTML to save all your changes</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          );
+        })()}
       </div>
     );
   }
