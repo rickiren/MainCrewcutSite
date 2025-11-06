@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import PageLayout from '@/components/PageLayout';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Download, Sparkles, Save, Undo2, Redo2 } from 'lucide-react';
+import { Download, Sparkles, Save, Undo2, Redo2, Upload } from 'lucide-react';
 import { OverlayCanvas } from '@/components/kick-overlay/OverlayCanvas';
 import { ElementPanel } from '@/components/kick-overlay/ElementPanel';
 import { StyleCustomizer } from '@/components/kick-overlay/StyleCustomizer';
@@ -28,6 +28,53 @@ export default function KickOverlayGenerator() {
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('elements');
   const [showAIGenerator, setShowAIGenerator] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle HTML file upload
+  const handleHTMLFileUpload = (file: File) => {
+    if (file.type === 'text/html' || file.name.endsWith('.html')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(content, 'text/html');
+
+        let extractedHTML = '';
+        let extractedCSS = '';
+
+        // Extract CSS from <style> tags
+        const styleTags = doc.querySelectorAll('style');
+        styleTags.forEach(style => {
+          extractedCSS += style.textContent + '\n';
+        });
+
+        // Get the body content or full HTML if no body
+        const body = doc.querySelector('body');
+        if (body && body.innerHTML.trim()) {
+          extractedHTML = body.innerHTML;
+        } else {
+          extractedHTML = content;
+        }
+
+        // Update the overlay config with the HTML template
+        setOverlayConfig(prev => ({
+          ...prev,
+          htmlTemplate: extractedHTML,
+          cssTemplate: extractedCSS,
+        }));
+      };
+      reader.readAsText(file);
+    } else {
+      alert('Please upload an HTML file (.html)');
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleHTMLFileUpload(files[0]);
+    }
+  };
 
   // Add a new element to the canvas
   const handleAddElement = (element: OverlayElement) => {
@@ -218,6 +265,13 @@ export default function KickOverlayGenerator() {
 
   return (
     <PageLayout>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".html,text/html"
+        onChange={handleFileInputChange}
+        className="hidden"
+      />
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 pt-20">
         <div className="px-4 sm:px-6 lg:px-8 max-w-[1800px] mx-auto pb-12">
           {/* Header */}
@@ -228,10 +282,18 @@ export default function KickOverlayGenerator() {
                   Kick Overlay Generator
                 </h1>
                 <p className="text-gray-300">
-                  Create professional streaming overlays for OBS with AI-powered design
+                  Create professional streaming overlays for OBS - Upload HTML or use AI
                 </p>
               </div>
               <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-orange-600/20 border-orange-500 text-orange-200 hover:bg-orange-600/30"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload HTML
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => setShowAIGenerator(!showAIGenerator)}

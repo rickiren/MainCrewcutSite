@@ -35,11 +35,68 @@ export const DraggableOverlayEditor: React.FC<DraggableOverlayEditorProps> = ({
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [showBaseHTML, setShowBaseHTML] = useState(true);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const htmlContentRef = useRef<HTMLDivElement>(null);
+
+  // Extract editable elements from HTML on load
+  useEffect(() => {
+    if (html && htmlContentRef.current && elements.length === 0) {
+      extractEditableElements();
+    }
+  }, [html]);
 
   useEffect(() => {
     onElementsChange(elements);
   }, [elements, onElementsChange]);
+
+  const extractEditableElements = () => {
+    if (!htmlContentRef.current) return;
+
+    const extractedElements: OverlayElement[] = [];
+
+    // Get all text-containing elements from the actual rendered HTML
+    const editableSelectors = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'button', 'a', 'span', 'div'];
+
+    editableSelectors.forEach(selector => {
+      const nodes = htmlContentRef.current?.querySelectorAll(selector);
+      if (!nodes) return;
+
+      nodes.forEach((node, index) => {
+        const textContent = node.textContent?.trim();
+        // Only extract elements with meaningful text and not too many children (avoid containers)
+        if (textContent && textContent.length > 0 && textContent.length < 200 && node.children.length === 0) {
+          const rect = node.getBoundingClientRect();
+          const canvasRect = canvasRef.current?.getBoundingClientRect();
+
+          if (rect && canvasRect) {
+            const computedStyle = window.getComputedStyle(node);
+            const color = computedStyle.color || '#000000';
+            const fontSize = parseInt(computedStyle.fontSize) || 16;
+            const bgColor = computedStyle.backgroundColor;
+
+            extractedElements.push({
+              id: `extracted-${selector}-${index}-${Date.now()}`,
+              type: 'text',
+              content: textContent,
+              x: rect.left - canvasRect.left,
+              y: rect.top - canvasRect.top,
+              width: rect.width || 200,
+              height: rect.height || 40,
+              fontSize: fontSize,
+              color: color,
+              backgroundColor: bgColor !== 'rgba(0, 0, 0, 0)' ? bgColor : undefined,
+            });
+          }
+        }
+      });
+    });
+
+    if (extractedElements.length > 0) {
+      setElements(extractedElements);
+      setShowBaseHTML(false); // Hide base HTML after extraction to show overlays
+    }
+  };
 
   const handleMouseDown = (e: React.MouseEvent, elementId: string) => {
     const element = elements.find((el) => el.id === elementId);
@@ -119,24 +176,77 @@ export const DraggableOverlayEditor: React.FC<DraggableOverlayEditorProps> = ({
   const selectedEl = elements.find((el) => el.id === selectedElement);
 
   return (
-    <div className="grid grid-cols-[1fr,300px] gap-4 h-[600px]">
-      {/* Canvas */}
-      <Card className="relative overflow-hidden">
-        <div
-          ref={canvasRef}
-          className="absolute inset-0 bg-gradient-to-br from-purple-100 to-blue-100"
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        >
-          {/* Base HTML Preview */}
-          <div
-            className="absolute inset-0 pointer-events-none opacity-30"
-            dangerouslySetInnerHTML={{ __html: `<style>${css}</style>${html}` }}
-          />
+    <div className="flex flex-col h-full">
+      {/* Toolbar */}
+      <div className="bg-white border-b border-gray-200 p-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setShowBaseHTML(!showBaseHTML)}
+            size="sm"
+            variant={showBaseHTML ? 'default' : 'outline'}
+          >
+            {showBaseHTML ? 'Hide' : 'Show'} Original HTML
+          </Button>
+          <Button
+            onClick={extractEditableElements}
+            size="sm"
+            variant="default"
+            className="bg-purple-600 hover:bg-purple-700"
+          >
+            {elements.length > 0 ? 'Re-extract Elements' : 'Extract Elements to Edit'}
+          </Button>
+        </div>
+        <div className="flex items-center gap-3">
+          {elements.length > 0 && (
+            <span className="text-sm text-green-600 font-medium">
+              ✓ {elements.length} editable elements
+            </span>
+          )}
+        </div>
+      </div>
 
-          {/* Draggable Elements */}
-          {elements.map((element) => (
+      <div className="grid grid-cols-[1fr,300px] gap-4 flex-1 p-4">
+        {/* Canvas */}
+        <Card className="relative overflow-auto">
+          <div
+            ref={canvasRef}
+            className="relative min-h-full bg-white"
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
+            {/* Base HTML Preview - Now fully visible */}
+            {showBaseHTML && (
+              <div
+                ref={htmlContentRef}
+                className="w-full h-full"
+                dangerouslySetInnerHTML={{ __html: `<style>${css}</style>${html}` }}
+              />
+            )}
+
+            {/* Instructional Overlay */}
+            {showBaseHTML && elements.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none">
+                <div className="bg-white rounded-lg p-6 max-w-md text-center shadow-xl pointer-events-auto">
+                  <h3 className="text-xl font-bold mb-3">Your HTML is Loaded!</h3>
+                  <p className="text-gray-600 mb-4">
+                    Click the "Extract Elements to Edit" button above to make all text elements editable and draggable.
+                  </p>
+                  <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-left">
+                    <p className="font-semibold text-blue-900 mb-2">What happens next:</p>
+                    <ul className="space-y-1 text-blue-800">
+                      <li>✓ Text elements will be extracted</li>
+                      <li>✓ You can drag them to reposition</li>
+                      <li>✓ Edit colors, sizes, and content</li>
+                      <li>✓ Export your customized overlay</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Draggable Elements Overlay */}
+            {elements.map((element) => (
             <div
               key={element.id}
               className={`absolute cursor-move ${
@@ -174,13 +284,13 @@ export const DraggableOverlayEditor: React.FC<DraggableOverlayEditorProps> = ({
                   }}
                 />
               )}
-            </div>
-          ))}
-        </div>
-      </Card>
+              </div>
+            ))}
+          </div>
+        </Card>
 
-      {/* Controls */}
-      <div className="flex flex-col gap-4">
+        {/* Controls */}
+        <div className="flex flex-col gap-4">
         {/* Toolbar */}
         <Card className="p-4">
           <h3 className="font-semibold mb-3">Add Elements</h3>
@@ -364,6 +474,7 @@ export const DraggableOverlayEditor: React.FC<DraggableOverlayEditorProps> = ({
             </div>
           </ScrollArea>
         </Card>
+        </div>
       </div>
     </div>
   );
