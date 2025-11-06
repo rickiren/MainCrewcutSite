@@ -10,6 +10,9 @@ export default defineConfig(({ mode }) => {
   
   return {
   base: '/', // Explicitly set base path for Firebase
+  optimizeDeps: {
+    include: ['clsx', 'recharts'],
+  },
   server: {
     host: "::",
     port: 8080,

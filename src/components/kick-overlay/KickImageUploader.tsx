@@ -70,16 +70,16 @@ export const KickImageUploader: React.FC<KickImageUploaderProps> = ({
 
   if (uploadedImage) {
     return (
-      <Card className="relative overflow-hidden bg-gray-800/50 border-gray-700">
+      <Card className="relative overflow-hidden bg-gray-700/30 border-gray-600">
         <img
           src={uploadedImage}
           alt="Uploaded design"
           className="w-full h-48 object-cover"
         />
         {isAnalyzing && (
-          <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
             <div className="text-white text-center">
-              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-purple-400" />
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
               <p className="text-sm">Analyzing design...</p>
             </div>
           </div>
@@ -100,8 +100,8 @@ export const KickImageUploader: React.FC<KickImageUploaderProps> = ({
     <div
       className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
         dragActive
-          ? 'border-purple-500 bg-purple-500/10'
-          : 'border-gray-600 hover:border-purple-500/50 bg-gray-800/30'
+          ? 'border-purple-500 bg-purple-900/20'
+          : 'border-gray-600 bg-gray-700/30 hover:border-gray-500'
       }`}
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}
@@ -117,8 +117,8 @@ export const KickImageUploader: React.FC<KickImageUploaderProps> = ({
       />
       <label htmlFor="kick-image-upload" className="cursor-pointer">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-gray-700/50 flex items-center justify-center">
-            <ImageIcon className="w-8 h-8 text-purple-400" />
+          <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center">
+            <ImageIcon className="w-8 h-8 text-gray-400" />
           </div>
           <div>
             <p className="text-sm font-medium text-gray-300 mb-1">
@@ -128,7 +128,7 @@ export const KickImageUploader: React.FC<KickImageUploaderProps> = ({
               Drag and drop or click to browse
             </p>
           </div>
-          <Button type="button" variant="secondary" size="sm" className="bg-purple-600/20 border-purple-500 text-purple-200 hover:bg-purple-600/30">
+          <Button type="button" variant="secondary" size="sm" className="bg-purple-600 hover:bg-purple-700 text-white">
             <Upload className="w-4 h-4 mr-2" />
             Choose Image
           </Button>
@@ -137,4 +137,3 @@ export const KickImageUploader: React.FC<KickImageUploaderProps> = ({
     </div>
   );
 };
-
