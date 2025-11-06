@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { Trash2, GripVertical, Video, MessageSquare, Bell, Image, DollarSign, Users, Eye, Edit3, Eye as EyeIcon, Palette, Save } from 'lucide-react';
+import { Trash2, GripVertical, Video, MessageSquare, Bell, Image, DollarSign, Users, Eye, Edit3, Eye as EyeIcon, Palette, Save, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import type { OverlayConfig, OverlayElement } from '@/types/overlay';
@@ -540,6 +540,72 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
     }
   };
 
+  // Handle duplicating an HTML element
+  const handleDuplicateHTMLElement = (extractedId: string) => {
+    const extracted = extractedElements.find((el) => el.id === extractedId);
+    if (!extracted || !extracted.element || !htmlContainerRef.current) return;
+
+    // Clone the DOM element
+    const clonedElement = extracted.element.cloneNode(true) as HTMLElement;
+
+    // Generate a unique ID for the clone
+    const newId = `${extractedId}-copy-${Date.now()}`;
+    clonedElement.setAttribute('data-id', newId);
+    clonedElement.setAttribute('data-editable', 'true');
+
+    // Get the current transform of the original element
+    const currentTransform = extracted.element.style.transform || '';
+    const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+
+    let currentX = 0;
+    let currentY = 0;
+    if (translateMatch) {
+      currentX = parseFloat(translateMatch[1].trim()) || 0;
+      currentY = parseFloat(translateMatch[2].trim()) || 0;
+    }
+
+    // Offset the duplicate by 20px so it's visible and not directly on top
+    const offsetX = currentX + 20;
+    const offsetY = currentY + 20;
+
+    clonedElement.style.position = 'relative';
+    clonedElement.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+
+    // Insert the cloned element right after the original in the DOM
+    if (extracted.element.parentNode) {
+      extracted.element.parentNode.insertBefore(clonedElement, extracted.element.nextSibling);
+    } else {
+      htmlContainerRef.current.appendChild(clonedElement);
+    }
+
+    // Get the bounding rect for the new element
+    const elementRect = clonedElement.getBoundingClientRect();
+    const canvasRect = htmlContainerRef.current.getBoundingClientRect();
+
+    // Calculate position relative to the container, accounting for scale
+    const relativeX = (elementRect.left - canvasRect.left) / canvasScale;
+    const relativeY = (elementRect.top - canvasRect.top) / canvasScale;
+    const relativeWidth = elementRect.width / canvasScale;
+    const relativeHeight = elementRect.height / canvasScale;
+
+    // Create a new extracted element entry
+    const newExtractedElement: ExtractedHTMLElement = {
+      id: newId,
+      element: clonedElement,
+      tagName: clonedElement.tagName.toLowerCase(),
+      textContent: clonedElement.textContent?.trim() || '',
+      rect: new DOMRect(relativeX, relativeY, relativeWidth, relativeHeight),
+      computedStyle: window.getComputedStyle(clonedElement),
+    };
+
+    // Update the extracted elements state
+    setExtractedElements((prev) => [...prev, newExtractedElement]);
+    onExtractedElementsChange?.([...extractedElements, newExtractedElement]);
+
+    // Select the newly duplicated element
+    onSelectElement(newId);
+  };
+
   // Set up global mouse event listeners for dragging
   useEffect(() => {
     if (draggingElementId) {
@@ -553,19 +619,27 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
     }
   }, [draggingElementId, extractedElements, dragOffset, canvasScale]);
 
-  // Set up keyboard event listener for delete key
+  // Set up keyboard event listeners for delete and duplicate
   useEffect(() => {
     if (!editMode || !selectedElementId) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Delete or Backspace key
+      // Only process if we have a selected HTML element
+      const isHTMLElement = extractedElements.some(el => el.id === selectedElementId);
+      if (!isHTMLElement) return;
+
+      // Duplicate: Ctrl+D (Windows/Linux) or Cmd+D (Mac)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        e.preventDefault();
+        handleDuplicateHTMLElement(selectedElementId);
+        return;
+      }
+
+      // Delete: Delete or Backspace key
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        // Only delete if we're in edit mode and have a selected HTML element
-        if (selectedElementId && selectedElementId.startsWith('html-') ||
-            extractedElements.some(el => el.id === selectedElementId)) {
-          e.preventDefault();
-          handleDeleteHTMLElement(selectedElementId);
-        }
+        e.preventDefault();
+        handleDeleteHTMLElement(selectedElementId);
+        return;
       }
     };
 
@@ -705,8 +779,8 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
                     zIndex: zIndex,
                   }}
                   onMouseDown={(e) => {
-                    // Don't start drag if clicking on delete button
-                    if ((e.target as HTMLElement).closest('.delete-button')) {
+                    // Don't start drag if clicking on action buttons
+                    if ((e.target as HTMLElement).closest('.action-button')) {
                       return;
                     }
                     handleHTMLElementDragStart(extracted.id, e);
@@ -716,7 +790,7 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
                     onSelectElement(extracted.id);
                   }}
                 >
-                  {/* Selection indicator with delete button */}
+                  {/* Selection indicator with action buttons */}
                   {isSelected && (
                     <div className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap flex items-center gap-2 z-10">
                       <GripVertical className="w-3 h-3" />
@@ -728,9 +802,22 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
                         variant="ghost"
                         onClick={(e) => {
                           e.stopPropagation();
+                          handleDuplicateHTMLElement(extracted.id);
+                        }}
+                        className="action-button h-4 w-4 p-0 ml-1 hover:bg-green-500/30"
+                        title="Duplicate (Ctrl+D)"
+                      >
+                        <Copy className="w-3 h-3 text-green-300 hover:text-green-100" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           handleDeleteHTMLElement(extracted.id);
                         }}
-                        className="delete-button h-4 w-4 p-0 ml-1 hover:bg-red-500/30"
+                        className="action-button h-4 w-4 p-0 hover:bg-red-500/30"
+                        title="Delete (Del)"
                       >
                         <Trash2 className="w-3 h-3 text-red-300 hover:text-red-100" />
                       </Button>
