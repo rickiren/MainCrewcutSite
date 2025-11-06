@@ -376,14 +376,18 @@ export function OverlayCanvas({
 
   // Handle dragging extracted HTML elements
   const handleHTMLElementDrag = (extractedId: string, deltaX: number, deltaY: number) => {
+    // Normalize deltas by canvas scale to account for zoom/scaling
+    const normalizedDeltaX = deltaX / canvasScale;
+    const normalizedDeltaY = deltaY / canvasScale;
+
     setExtractedElements((prev) =>
       prev.map((el) => {
         if (el.id === extractedId) {
           return {
             ...el,
             rect: new DOMRect(
-              el.rect.x + deltaX,
-              el.rect.y + deltaY,
+              el.rect.x + normalizedDeltaX,
+              el.rect.y + normalizedDeltaY,
               el.rect.width,
               el.rect.height
             ),
@@ -407,7 +411,7 @@ export function OverlayCanvas({
       }
 
       extracted.element.style.position = 'relative';
-      extracted.element.style.transform = `translate(${currentX + deltaX}px, ${currentY + deltaY}px)`;
+      extracted.element.style.transform = `translate(${currentX + normalizedDeltaX}px, ${currentY + normalizedDeltaY}px)`;
     }
   };
 
@@ -570,6 +574,20 @@ export function OverlayCanvas({
           const selected = extractedElements.find((el) => el.id === selectedElementId);
           if (!selected) return null;
 
+          // Helper to convert RGB to Hex
+          const rgbToHex = (rgb: string): string => {
+            if (!rgb || rgb === 'rgba(0, 0, 0, 0)' || rgb === 'transparent') return '#000000';
+
+            const result = rgb.match(/\d+/g);
+            if (!result || result.length < 3) return '#000000';
+
+            const r = parseInt(result[0]);
+            const g = parseInt(result[1]);
+            const b = parseInt(result[2]);
+
+            return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+          };
+
           const handleUpdate = (updates: Partial<CSSStyleDeclaration>) => {
             Object.entries(updates).forEach(([property, value]) => {
               if (selected.element && value) {
@@ -581,8 +599,17 @@ export function OverlayCanvas({
           const handleContentUpdate = (content: string) => {
             if (selected.element) {
               selected.element.textContent = content;
+              // Update the extracted element's textContent so it shows in the UI
+              setExtractedElements((prev) =>
+                prev.map((el) =>
+                  el.id === selected.id ? { ...el, textContent: content } : el
+                )
+              );
             }
           };
+
+          const currentColor = rgbToHex(selected.computedStyle.color);
+          const currentBgColor = rgbToHex(selected.computedStyle.backgroundColor);
 
           return (
             <div className="mt-6">
@@ -609,10 +636,13 @@ export function OverlayCanvas({
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">Text Content</label>
                       <textarea
+                        key={selected.id}
                         defaultValue={selected.textContent}
-                        onBlur={(e) => handleContentUpdate(e.target.value)}
-                        className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-md text-white text-sm min-h-[80px]"
+                        onChange={(e) => handleContentUpdate(e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-md text-white text-sm min-h-[80px] resize-none"
+                        placeholder="Enter text..."
                       />
+                      <p className="text-xs text-gray-500 mt-1">Changes apply as you type</p>
                     </div>
 
                     {/* Font Size */}
@@ -632,16 +662,38 @@ export function OverlayCanvas({
                       <div className="flex gap-2">
                         <input
                           type="color"
-                          defaultValue={selected.computedStyle.color || '#000000'}
+                          defaultValue={currentColor}
                           onChange={(e) => handleUpdate({ color: e.target.value })}
                           className="w-20 h-10 bg-gray-700/50 border border-gray-600 rounded-md cursor-pointer"
                         />
                         <input
                           type="text"
-                          defaultValue={selected.computedStyle.color}
+                          defaultValue={currentColor}
                           onChange={(e) => handleUpdate({ color: e.target.value })}
+                          onBlur={(e) => handleUpdate({ color: e.target.value })}
                           className="flex-1 px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-md text-white text-sm font-mono"
                           placeholder="#000000"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Background Color */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Background Color</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          defaultValue={currentBgColor !== '#000000' ? currentBgColor : '#ffffff'}
+                          onChange={(e) => handleUpdate({ backgroundColor: e.target.value })}
+                          className="w-20 h-10 bg-gray-700/50 border border-gray-600 rounded-md cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          defaultValue={currentBgColor}
+                          onChange={(e) => handleUpdate({ backgroundColor: e.target.value })}
+                          onBlur={(e) => handleUpdate({ backgroundColor: e.target.value })}
+                          className="flex-1 px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-md text-white text-sm font-mono"
+                          placeholder="transparent"
                         />
                       </div>
                     </div>
