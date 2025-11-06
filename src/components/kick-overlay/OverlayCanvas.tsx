@@ -433,6 +433,7 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
   };
 
   // Handle dragging extracted HTML elements with proper coordinate normalization
+  // KEY FIX for nested elements: always calculate relative to current screen position
   const handleHTMLElementDragStart = (extractedId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -446,24 +447,22 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
     const extracted = extractedElements.find((el) => el.id === extractedId);
     if (!extracted || !extracted.element) return;
 
+    // Get the element's CURRENT screen position (includes all parent transforms)
+    // This is critical for nested elements!
+    const elementRect = extracted.element.getBoundingClientRect();
+
     // Calculate mouse position relative to canvas in canvas coordinates (1920x1080 space)
     const mouseCanvasX = (e.clientX - canvasRect.left) / canvasScale;
     const mouseCanvasY = (e.clientY - canvasRect.top) / canvasScale;
 
-    // Get current element position
-    const currentTransform = extracted.element.style.transform || '';
-    const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+    // Calculate the element's current position in canvas coordinates
+    const elementCanvasX = (elementRect.left - canvasRect.left) / canvasScale;
+    const elementCanvasY = (elementRect.top - canvasRect.top) / canvasScale;
 
-    let currentX = 0;
-    let currentY = 0;
-    if (translateMatch) {
-      currentX = parseFloat(translateMatch[1].trim());
-      currentY = parseFloat(translateMatch[2].trim());
-    }
-
-    // Calculate offset from element's top-left corner to mouse position
-    const offsetX = mouseCanvasX - (extracted.rect.x + currentX);
-    const offsetY = mouseCanvasY - (extracted.rect.y + currentY);
+    // Store the offset from the element's top-left corner to the mouse
+    // This keeps the grab point consistent during the drag
+    const offsetX = mouseCanvasX - elementCanvasX;
+    const offsetY = mouseCanvasY - elementCanvasY;
 
     setDraggingElementId(extractedId);
     setDragOffset({ x: offsetX, y: offsetY });
@@ -480,20 +479,41 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
     const canvasRect = canvasContainerRef.current.getBoundingClientRect();
 
     // Calculate mouse position relative to canvas in canvas coordinates (1920x1080 space)
-    // This is the KEY FIX: normalize screen coordinates to canvas coordinates
     const mouseCanvasX = (e.clientX - canvasRect.left) / canvasScale;
     const mouseCanvasY = (e.clientY - canvasRect.top) / canvasScale;
 
-    // Calculate new element position accounting for drag offset
-    const newX = mouseCanvasX - dragOffset.x - extracted.rect.x;
-    const newY = mouseCanvasY - dragOffset.y - extracted.rect.y;
+    // Calculate where we WANT the element to be (accounting for grab offset)
+    const desiredCanvasX = mouseCanvasX - dragOffset.x;
+    const desiredCanvasY = mouseCanvasY - dragOffset.y;
 
-    // Update the HTML element's position
+    // Get the element's CURRENT screen position (includes all parent transforms and positioning)
+    // This is the KEY FIX for nested elements - we calculate from where it actually is NOW
+    const currentElementRect = extracted.element.getBoundingClientRect();
+    const currentCanvasX = (currentElementRect.left - canvasRect.left) / canvasScale;
+    const currentCanvasY = (currentElementRect.top - canvasRect.top) / canvasScale;
+
+    // Calculate the delta we need to move from current position to desired position
+    const deltaX = desiredCanvasX - currentCanvasX;
+    const deltaY = desiredCanvasY - currentCanvasY;
+
+    // Get the element's existing transform values
+    const currentTransform = extracted.element.style.transform || '';
+    const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+
+    let currentTransformX = 0;
+    let currentTransformY = 0;
+    if (translateMatch) {
+      currentTransformX = parseFloat(translateMatch[1].trim()) || 0;
+      currentTransformY = parseFloat(translateMatch[2].trim()) || 0;
+    }
+
+    // Apply the delta to the existing transform
+    // This works for both top-level and nested elements because we're always
+    // calculating the delta from the element's actual current screen position
     extracted.element.style.position = 'relative';
-    extracted.element.style.transform = `translate(${newX}px, ${newY}px)`;
+    extracted.element.style.transform = `translate(${currentTransformX + deltaX}px, ${currentTransformY + deltaY}px)`;
 
     // Force a re-render to update overlay positions
-    // We need to update the extractedElements state to trigger a re-render
     setExtractedElements((prev) => [...prev]);
   };
 
@@ -614,24 +634,21 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
               // Higher z-index for selected, and incrementing for others to prevent overlap issues
               const zIndex = isSelected ? 9999 : 1000 + index;
 
-              // Get current transform position
-              let currentX = 0;
-              let currentY = 0;
-              if (extracted.element) {
-                const currentTransform = extracted.element.style.transform || '';
-                const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
-                if (translateMatch) {
-                  currentX = parseFloat(translateMatch[1].trim()) || 0;
-                  currentY = parseFloat(translateMatch[2].trim()) || 0;
-                }
+              // KEY FIX for nested elements: Always get the element's CURRENT screen position
+              // This accounts for all parent transforms and positioning
+              if (!extracted.element || !canvasContainerRef.current) {
+                return null;
               }
 
-              // Position overlays accounting for canvas scale AND current transform
-              // The HTML container is scaled, but overlays are not, so we need to scale the positions
-              const overlayLeft = (extracted.rect.x + currentX) * canvasScale;
-              const overlayTop = (extracted.rect.y + currentY) * canvasScale;
-              const overlayWidth = extracted.rect.width * canvasScale;
-              const overlayHeight = extracted.rect.height * canvasScale;
+              const elementRect = extracted.element.getBoundingClientRect();
+              const canvasRect = canvasContainerRef.current.getBoundingClientRect();
+
+              // Calculate overlay position based on element's actual current screen position
+              // This works correctly for both top-level and nested elements
+              const overlayLeft = elementRect.left - canvasRect.left;
+              const overlayTop = elementRect.top - canvasRect.top;
+              const overlayWidth = elementRect.width;
+              const overlayHeight = elementRect.height;
 
               return (
                 <div
