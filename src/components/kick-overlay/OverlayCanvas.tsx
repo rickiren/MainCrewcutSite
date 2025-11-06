@@ -55,6 +55,16 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
   const [extractedElements, setExtractedElements] = useState<ExtractedHTMLElement[]>([]);
   const [draggingElementId, setDraggingElementId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [resizingElementId, setResizingElementId] = useState<string | null>(null);
+  const [resizeHandle, setResizeHandle] = useState<string | null>(null);
+  const [htmlResizeStart, setHtmlResizeStart] = useState({
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    elementX: 0,
+    elementY: 0
+  });
 
   // Calculate canvas scale to fit container
   useEffect(() => {
@@ -606,6 +616,112 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
     onSelectElement(newId);
   };
 
+  // Handle resizing HTML elements
+  const handleHTMLElementResizeStart = (extractedId: string, handle: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!canvasContainerRef.current) return;
+
+    const extracted = extractedElements.find((el) => el.id === extractedId);
+    if (!extracted || !extracted.element) return;
+
+    // Get canvas and element rectangles
+    const canvasRect = canvasContainerRef.current.getBoundingClientRect();
+    const elementRect = extracted.element.getBoundingClientRect();
+
+    // Store initial state
+    setResizingElementId(extractedId);
+    setResizeHandle(handle);
+    setHtmlResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      width: elementRect.width / canvasScale,
+      height: elementRect.height / canvasScale,
+      elementX: (elementRect.left - canvasRect.left) / canvasScale,
+      elementY: (elementRect.top - canvasRect.top) / canvasScale,
+    });
+    onSelectElement(extractedId);
+  };
+
+  const handleHTMLElementResizeMove = (e: MouseEvent) => {
+    if (!resizingElementId || !resizeHandle || !canvasContainerRef.current) return;
+
+    const extracted = extractedElements.find((el) => el.id === resizingElementId);
+    if (!extracted || !extracted.element) return;
+
+    // Calculate mouse delta in canvas coordinates
+    const deltaX = (e.clientX - htmlResizeStart.x) / canvasScale;
+    const deltaY = (e.clientY - htmlResizeStart.y) / canvasScale;
+
+    // Get current transform
+    const currentTransform = extracted.element.style.transform || '';
+    const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+    let currentTransformX = 0;
+    let currentTransformY = 0;
+    if (translateMatch) {
+      currentTransformX = parseFloat(translateMatch[1].trim()) || 0;
+      currentTransformY = parseFloat(translateMatch[2].trim()) || 0;
+    }
+
+    let newWidth = htmlResizeStart.width;
+    let newHeight = htmlResizeStart.height;
+    let newTransformX = currentTransformX;
+    let newTransformY = currentTransformY;
+
+    // Calculate new dimensions based on which handle is being dragged
+    switch (resizeHandle) {
+      case 'nw': // Top-left corner
+        newWidth = Math.max(20, htmlResizeStart.width - deltaX);
+        newHeight = Math.max(20, htmlResizeStart.height - deltaY);
+        newTransformX = currentTransformX + (htmlResizeStart.width - newWidth);
+        newTransformY = currentTransformY + (htmlResizeStart.height - newHeight);
+        break;
+      case 'ne': // Top-right corner
+        newWidth = Math.max(20, htmlResizeStart.width + deltaX);
+        newHeight = Math.max(20, htmlResizeStart.height - deltaY);
+        newTransformY = currentTransformY + (htmlResizeStart.height - newHeight);
+        break;
+      case 'sw': // Bottom-left corner
+        newWidth = Math.max(20, htmlResizeStart.width - deltaX);
+        newHeight = Math.max(20, htmlResizeStart.height + deltaY);
+        newTransformX = currentTransformX + (htmlResizeStart.width - newWidth);
+        break;
+      case 'se': // Bottom-right corner
+        newWidth = Math.max(20, htmlResizeStart.width + deltaX);
+        newHeight = Math.max(20, htmlResizeStart.height + deltaY);
+        break;
+      case 'n': // Top edge
+        newHeight = Math.max(20, htmlResizeStart.height - deltaY);
+        newTransformY = currentTransformY + (htmlResizeStart.height - newHeight);
+        break;
+      case 's': // Bottom edge
+        newHeight = Math.max(20, htmlResizeStart.height + deltaY);
+        break;
+      case 'w': // Left edge
+        newWidth = Math.max(20, htmlResizeStart.width - deltaX);
+        newTransformX = currentTransformX + (htmlResizeStart.width - newWidth);
+        break;
+      case 'e': // Right edge
+        newWidth = Math.max(20, htmlResizeStart.width + deltaX);
+        break;
+    }
+
+    // Apply new dimensions and position
+    extracted.element.style.width = `${newWidth}px`;
+    extracted.element.style.height = `${newHeight}px`;
+    extracted.element.style.position = 'relative';
+    extracted.element.style.transform = `translate(${newTransformX}px, ${newTransformY}px)`;
+
+    // Force re-render to update overlays
+    setExtractedElements((prev) => [...prev]);
+  };
+
+  const handleHTMLElementResizeEnd = () => {
+    setResizingElementId(null);
+    setResizeHandle(null);
+  };
+
   // Set up global mouse event listeners for dragging
   useEffect(() => {
     if (draggingElementId) {
@@ -618,6 +734,19 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
       };
     }
   }, [draggingElementId, extractedElements, dragOffset, canvasScale]);
+
+  // Set up global mouse event listeners for resizing
+  useEffect(() => {
+    if (resizingElementId) {
+      document.addEventListener('mousemove', handleHTMLElementResizeMove);
+      document.addEventListener('mouseup', handleHTMLElementResizeEnd);
+
+      return () => {
+        document.removeEventListener('mousemove', handleHTMLElementResizeMove);
+        document.removeEventListener('mouseup', handleHTMLElementResizeEnd);
+      };
+    }
+  }, [resizingElementId, resizeHandle, htmlResizeStart, extractedElements, canvasScale]);
 
   // Set up keyboard event listeners for delete and duplicate
   useEffect(() => {
@@ -779,8 +908,9 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
                     zIndex: zIndex,
                   }}
                   onMouseDown={(e) => {
-                    // Don't start drag if clicking on action buttons
-                    if ((e.target as HTMLElement).closest('.action-button')) {
+                    // Don't start drag if clicking on action buttons or resize handles
+                    if ((e.target as HTMLElement).closest('.action-button') ||
+                        (e.target as HTMLElement).closest('.resize-handle')) {
                       return;
                     }
                     handleHTMLElementDragStart(extracted.id, e);
@@ -831,6 +961,55 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
                         Click to select & drag
                       </span>
                     </div>
+                  )}
+
+                  {/* Resize handles - only show when selected */}
+                  {isSelected && (
+                    <>
+                      {/* Corner handles */}
+                      <div
+                        className="resize-handle absolute -top-1 -left-1 w-3 h-3 bg-blue-500 border border-white rounded-sm cursor-nwse-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 'nw', e)}
+                        title="Resize top-left"
+                      />
+                      <div
+                        className="resize-handle absolute -top-1 -right-1 w-3 h-3 bg-blue-500 border border-white rounded-sm cursor-nesw-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 'ne', e)}
+                        title="Resize top-right"
+                      />
+                      <div
+                        className="resize-handle absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 border border-white rounded-sm cursor-nesw-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 'sw', e)}
+                        title="Resize bottom-left"
+                      />
+                      <div
+                        className="resize-handle absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 border border-white rounded-sm cursor-nwse-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 'se', e)}
+                        title="Resize bottom-right"
+                      />
+
+                      {/* Edge handles */}
+                      <div
+                        className="resize-handle absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-2 bg-blue-500 border border-white rounded-sm cursor-ns-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 'n', e)}
+                        title="Resize top"
+                      />
+                      <div
+                        className="resize-handle absolute -bottom-1 left-1/2 -translate-x-1/2 w-3 h-2 bg-blue-500 border border-white rounded-sm cursor-ns-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 's', e)}
+                        title="Resize bottom"
+                      />
+                      <div
+                        className="resize-handle absolute top-1/2 -translate-y-1/2 -left-1 w-2 h-3 bg-blue-500 border border-white rounded-sm cursor-ew-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 'w', e)}
+                        title="Resize left"
+                      />
+                      <div
+                        className="resize-handle absolute top-1/2 -translate-y-1/2 -right-1 w-2 h-3 bg-blue-500 border border-white rounded-sm cursor-ew-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 'e', e)}
+                        title="Resize right"
+                      />
+                    </>
                   )}
                 </div>
               );
