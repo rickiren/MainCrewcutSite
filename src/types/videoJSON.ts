@@ -39,6 +39,10 @@ export type SceneType =
   | 'environment3D'
   | 'simple3DText'
 
+  // UI Mockups
+  | 'uiMockup'
+  | 'glassmorphicCard'
+
   // Data Visualization
   | 'statCard'
   | 'chartAnimated'
@@ -151,6 +155,42 @@ export interface CTAButtonProps {
   effect?: {
     type: 'wobble' | 'pulse' | 'glow';
     intensity?: number;
+  };
+}
+
+export interface UIMockupProps {
+  title?: string;
+  layout: 'centered' | 'split' | 'grid';
+  sections: Array<{
+    id: string;
+    type: 'form' | 'card' | 'info' | 'ticket';
+    position: { x: number; y: number; width: number; height: number };
+    content: {
+      title?: string;
+      fields?: Array<{ label: string; value: string; icon?: string }>;
+      image?: string;
+      barcode?: boolean;
+      button?: {
+        text: string;
+        action?: string;
+      };
+    };
+    style: {
+      backgroundColor?: string;
+      opacity?: number;
+      blur?: number;
+      border?: string;
+      gradient?: string[];
+    };
+  }>;
+  background: {
+    type: 'gradient' | 'pattern' | 'solid';
+    color?: string;
+    pattern?: 'ribbed' | 'grid' | 'dots';
+  };
+  animations: {
+    entrance: 'fadeIn' | 'slideUp' | 'scale' | 'flip';
+    stagger: number;
   };
 }
 

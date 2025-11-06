@@ -138,7 +138,7 @@ const Apps = () => {
               className="text-center mb-8"
             >
               <p className="text-gray-600">
-                Showing {filteredApps.length} of {apps.length} apps
+                Showing {filteredApps.length + 1} of {apps.length + 1} apps
               </p>
             </motion.div>
 
@@ -149,6 +149,111 @@ const Apps = () => {
               animate="visible"
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
             >
+              {/* Video Generator Card */}
+              <motion.div variants={itemVariants}>
+                <Card className="h-full hover:shadow-lg transition-all duration-300 border border-gray-200 hover:border-gray-300 group flex flex-col">
+                  <CardHeader className="pb-3">
+                    {/* Dashboard Preview */}
+                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-6 mb-4 border border-gray-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900">AI Video Generator</h3>
+                          <p className="text-xs text-gray-600">Professional video creation suite</p>
+                        </div>
+                        <div className="flex items-center gap-2 bg-green-100 px-3 py-1 rounded-full">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-xs font-medium text-green-700">LIVE</span>
+                        </div>
+                      </div>
+                      
+                      {/* Metrics */}
+                      <div className="grid grid-cols-4 gap-3 mb-4">
+                        <div className="bg-white p-3 rounded-lg border border-gray-200">
+                          <p className="text-xs text-gray-600 mb-1">Videos</p>
+                          <p className="text-lg font-bold text-blue-600">1.2K+</p>
+                          <p className="text-xs text-green-600">+24%</p>
+                        </div>
+                        <div className="bg-white p-3 rounded-lg border border-gray-200">
+                          <p className="text-xs text-gray-600 mb-1">Formats</p>
+                          <p className="text-lg font-bold text-purple-600">5</p>
+                          <p className="text-xs text-gray-500">Export types</p>
+                        </div>
+                        <div className="bg-white p-3 rounded-lg border border-gray-200">
+                          <p className="text-xs text-gray-600 mb-1">Render</p>
+                          <p className="text-lg font-bold text-orange-600">2.3s</p>
+                          <p className="text-xs text-gray-500">Avg speed</p>
+                        </div>
+                        <div className="bg-white p-3 rounded-lg border border-gray-200">
+                          <p className="text-xs text-gray-600 mb-1">Quality</p>
+                          <p className="text-lg font-bold text-green-600">4K</p>
+                          <p className="text-xs text-gray-500">HD Ready</p>
+                        </div>
+                      </div>
+
+                      {/* Video Preview Panels */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-gradient-to-br from-purple-500 via-blue-500 to-pink-500 rounded-lg p-4 flex items-center justify-center min-h-[100px]">
+                          <div className="text-center text-white">
+                            <div className="text-2xl font-bold mb-1" style={{
+                              textShadow: '0 0 20px rgba(255,255,255,0.8)',
+                            }}>Neon Text</div>
+                            <div className="text-xs opacity-80">Glow Effect</div>
+                          </div>
+                        </div>
+                        <div className="bg-gradient-to-br from-blue-400 via-purple-500 to-indigo-600 rounded-lg p-4 flex items-center justify-center min-h-[100px]">
+                          <div className="text-center text-white">
+                            <div className="text-2xl font-bold mb-1" style={{
+                              textShadow: '0 0 20px rgba(255,255,255,0.8)',
+                            }}>3D Motion</div>
+                            <div className="text-xs opacity-80">Camera Anim</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <CardTitle className="text-xl font-semibold group-hover:text-blue-600 transition-colors">
+                      AI Video Generator
+                    </CardTitle>
+                    <CardDescription className="text-gray-600">
+                      Create stunning animated videos with neon glow effects, 3D camera movements, and glassmorphic UI scenes. Perfect for product demos, social media content, and marketing videos.
+                    </CardDescription>
+                  </CardHeader>
+                  
+                  <CardContent className="pb-3 flex-1">
+                    <div className="mb-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Features:</h4>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant="secondary" className="text-xs">Neon Glow Text</Badge>
+                        <Badge variant="secondary" className="text-xs">3D Camera Motion</Badge>
+                        <Badge variant="secondary" className="text-xs">Glassmorphic UI</Badge>
+                        <Badge variant="outline" className="text-xs">+5 more</Badge>
+                      </div>
+                    </div>
+                    
+                    <div className="mb-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Technologies:</h4>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant="outline" className="text-xs">React</Badge>
+                        <Badge variant="outline" className="text-xs">Remotion</Badge>
+                        <Badge variant="outline" className="text-xs">TypeScript</Badge>
+                        <Badge variant="outline" className="text-xs">+1 more</Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                  
+                  <CardFooter className="pt-0 mt-auto">
+                    <div className="w-full flex gap-2">
+                      <Button asChild className="flex-1" size="sm">
+                        <Link to="/video-generator">
+                          <Play className="h-4 w-4 mr-2" />
+                          Try Demo
+                        </Link>
+                      </Button>
+                    </div>
+                  </CardFooter>
+                </Card>
+              </motion.div>
+
               {filteredApps.map((app) => (
                 <motion.div key={app.id} variants={itemVariants}>
                   <Card className="h-full hover:shadow-lg transition-all duration-300 border border-gray-200 hover:border-gray-300 group flex flex-col">
@@ -221,7 +326,6 @@ const Apps = () => {
                             </Button>
                           )}
                         </div>
-
                       </div>
                     </CardFooter>
                   </Card>

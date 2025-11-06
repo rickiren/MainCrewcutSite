@@ -97,6 +97,12 @@ export interface AnimatedTextProps<T extends AnimationType = AnimationType> {
   animationConfig?: AnimationConfigMap[T];
 
   /**
+   * Optional frame override (useful when inside Sequence)
+   * If not provided, uses useCurrentFrame()
+   */
+  frame?: number;
+
+  /**
    * Base CSS styles for the text container
    */
   style?: CSSProperties;
@@ -143,6 +149,7 @@ export const AnimatedText = <T extends AnimationType = AnimationType>({
   text,
   animation = 'fadeIn' as T,
   animationConfig,
+  frame: frameProp,
   style = {},
   segmentStyle = {},
   className = '',
@@ -150,11 +157,24 @@ export const AnimatedText = <T extends AnimationType = AnimationType>({
   align = 'center',
   verticalAlign = 'center',
 }: AnimatedTextProps<T>) => {
-  const frame = useCurrentFrame();
+  const currentFrame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  
+  // Use provided frame or fall back to current frame
+  const frame = frameProp !== undefined ? frameProp : currentFrame;
 
   // Get animation function
   const animationFunction = getAnimationFunction(animation);
+
+  // Debug logging
+  if (frame % 30 === 0) { // Log every 30 frames to avoid spam
+    console.log('🎨 AnimatedText:', {
+      animation,
+      frame,
+      text: text.substring(0, 20),
+      animationConfig,
+    });
+  }
 
   // Get animation result
   const result = animationFunction(frame, fps, text, animationConfig as any);
