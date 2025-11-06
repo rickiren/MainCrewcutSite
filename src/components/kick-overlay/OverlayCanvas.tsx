@@ -522,6 +522,24 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
     setDragOffset({ x: 0, y: 0 });
   };
 
+  // Handle deleting an HTML element
+  const handleDeleteHTMLElement = (extractedId: string) => {
+    const extracted = extractedElements.find((el) => el.id === extractedId);
+    if (!extracted || !extracted.element) return;
+
+    // Remove the element from the DOM
+    extracted.element.remove();
+
+    // Update the extracted elements state
+    setExtractedElements((prev) => prev.filter((el) => el.id !== extractedId));
+    onExtractedElementsChange?.(extractedElements.filter((el) => el.id !== extractedId));
+
+    // Clear selection if this element was selected
+    if (selectedElementId === extractedId) {
+      onSelectElement(null);
+    }
+  };
+
   // Set up global mouse event listeners for dragging
   useEffect(() => {
     if (draggingElementId) {
@@ -534,6 +552,26 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
       };
     }
   }, [draggingElementId, extractedElements, dragOffset, canvasScale]);
+
+  // Set up keyboard event listener for delete key
+  useEffect(() => {
+    if (!editMode || !selectedElementId) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Delete or Backspace key
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Only delete if we're in edit mode and have a selected HTML element
+        if (selectedElementId && selectedElementId.startsWith('html-') ||
+            extractedElements.some(el => el.id === selectedElementId)) {
+          e.preventDefault();
+          handleDeleteHTMLElement(selectedElementId);
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [editMode, selectedElementId, extractedElements]);
 
   // If HTML template exists, render it with edit mode support
   if (config.htmlTemplate) {
@@ -666,17 +704,36 @@ export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>
                     pointerEvents: 'auto',
                     zIndex: zIndex,
                   }}
-                  onMouseDown={(e) => handleHTMLElementDragStart(extracted.id, e)}
+                  onMouseDown={(e) => {
+                    // Don't start drag if clicking on delete button
+                    if ((e.target as HTMLElement).closest('.delete-button')) {
+                      return;
+                    }
+                    handleHTMLElementDragStart(extracted.id, e);
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     onSelectElement(extracted.id);
                   }}
                 >
-                  {/* Selection indicator */}
+                  {/* Selection indicator with delete button */}
                   {isSelected && (
                     <div className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap flex items-center gap-2 z-10">
                       <GripVertical className="w-3 h-3" />
-                      {extracted.tagName}: "{extracted.textContent.substring(0, 20)}..."
+                      <span>
+                        {extracted.tagName}: "{extracted.textContent.substring(0, 20)}..."
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteHTMLElement(extracted.id);
+                        }}
+                        className="delete-button h-4 w-4 p-0 ml-1 hover:bg-red-500/30"
+                      >
+                        <Trash2 className="w-3 h-3 text-red-300 hover:text-red-100" />
+                      </Button>
                     </div>
                   )}
 
