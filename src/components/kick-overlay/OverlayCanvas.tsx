@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { Trash2, GripVertical, Video, MessageSquare, Bell, Image, DollarSign, Users, Eye, Edit3, Eye as EyeIcon } from 'lucide-react';
+import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { Trash2, GripVertical, Video, MessageSquare, Bell, Image, DollarSign, Users, Eye, Edit3, Eye as EyeIcon, Palette, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import type { OverlayConfig, OverlayElement } from '@/types/overlay';
@@ -14,9 +14,12 @@ interface OverlayCanvasProps {
   onHTMLElementUpdate?: (elementId: string, property: string, value: string) => void;
   onHTMLElementContentUpdate?: (elementId: string, content: string) => void;
   selectedHTMLElement?: HTMLElement | null;
+  onEditModeChange?: (editMode: boolean) => void;
+  onExtractedElementsChange?: (elements: ExtractedHTMLElement[]) => void;
+  onSaveHTML?: (html: string, css: string) => void;
 }
 
-interface ExtractedHTMLElement {
+export interface ExtractedHTMLElement {
   id: string;
   element: HTMLElement;
   tagName: string;
@@ -25,14 +28,22 @@ interface ExtractedHTMLElement {
   computedStyle: CSSStyleDeclaration;
 }
 
-export function OverlayCanvas({
+export interface OverlayCanvasHandle {
+  save: () => void;
+}
+
+export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>(({
   config,
   selectedElementId,
   onSelectElement,
   onUpdateElement,
   onRemoveElement,
-}: OverlayCanvasProps) {
+  onEditModeChange,
+  onExtractedElementsChange,
+  onSaveHTML,
+}, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const htmlContainerRef = useRef<HTMLDivElement>(null);
   const [canvasScale, setCanvasScale] = useState(1);
@@ -326,46 +337,37 @@ export function OverlayCanvas({
       editableElements = htmlContainerRef.current.querySelectorAll('[data-editable="true"]');
     }
 
-    // Filter out parent elements that contain other editable children
-    const filteredElements: Element[] = [];
-    editableElements.forEach((el) => {
-      // Check if this element contains any other editable elements
-      const hasEditableChildren = Array.from(editableElements).some((otherEl) => {
-        return otherEl !== el && el.contains(otherEl);
-      });
-
-      // Only include elements that DON'T contain other editable elements
-      // This prevents overlapping draggable areas
-      if (!hasEditableChildren) {
-        filteredElements.push(el);
-      } else {
-        console.log(`Skipping parent element ${el.getAttribute('data-id')} - contains editable children`);
-      }
-    });
-
-    // Extract filtered elements
-    filteredElements.forEach((el, index) => {
+    // Extract ALL editable elements - don't filter out parents or overlapping elements
+    // Users can edit any element they want, even if it overlaps with others
+    editableElements.forEach((el, index) => {
       const htmlEl = el as HTMLElement;
       const text = htmlEl.textContent?.trim();
 
       // Get data-id or generate one
       const dataId = htmlEl.getAttribute('data-id') || `element-${index}-${Date.now()}`;
 
-      // Extract element info
+      // Extract element info - account for canvas scale in coordinates
       const rect = htmlEl.getBoundingClientRect();
       const containerRect = htmlContainerRef.current?.getBoundingClientRect();
 
       if (rect && containerRect) {
+        // Calculate position relative to the container, accounting for scale
+        // The container has a transform scale applied, so we need to account for that
+        const relativeX = (rect.left - containerRect.left) / canvasScale;
+        const relativeY = (rect.top - containerRect.top) / canvasScale;
+        const relativeWidth = rect.width / canvasScale;
+        const relativeHeight = rect.height / canvasScale;
+
         extracted.push({
           id: dataId,
           element: htmlEl,
           tagName: htmlEl.tagName.toLowerCase(),
           textContent: text || '',
           rect: new DOMRect(
-            rect.left - containerRect.left,
-            rect.top - containerRect.top,
-            rect.width,
-            rect.height
+            relativeX,
+            relativeY,
+            relativeWidth,
+            relativeHeight
           ),
           computedStyle: window.getComputedStyle(htmlEl),
         });
@@ -373,12 +375,48 @@ export function OverlayCanvas({
     });
 
     setExtractedElements(extracted);
-    console.log(`Extracted ${extracted.length} editable elements (filtered from ${editableElements.length} total)`);
+    onExtractedElementsChange?.(extracted);
+    console.log(`Extracted ${extracted.length} editable elements`);
   };
+
+  // Save modified HTML and CSS
+  const saveModifiedHTML = () => {
+    if (!htmlContainerRef.current || !config.htmlTemplate) return;
+
+    // Clone the container to avoid modifying the original
+    const container = htmlContainerRef.current.cloneNode(true) as HTMLElement;
+    
+    // Remove any temporary attributes we might have added
+    container.querySelectorAll('[data-temp-id]').forEach(el => {
+      el.removeAttribute('data-temp-id');
+    });
+    
+    // Extract the HTML content with all inline styles preserved
+    const modifiedHTML = container.innerHTML;
+    
+    // Keep the original CSS - inline styles are preserved in the HTML
+    const css = config.cssTemplate || '';
+
+    // Call the save callback
+    onSaveHTML?.(modifiedHTML, css);
+  };
+
+  // Expose save function via ref
+  useImperativeHandle(ref, () => ({
+    save: saveModifiedHTML,
+  }));
 
   // Toggle edit mode
   const toggleEditMode = () => {
-    setEditMode(!editMode);
+    const newEditMode = !editMode;
+    
+    if (editMode && !newEditMode) {
+      // Exiting edit mode - save changes before switching
+      saveModifiedHTML();
+    }
+    
+    setEditMode(newEditMode);
+    onEditModeChange?.(newEditMode);
     if (!editMode) {
       // Entering edit mode - extract elements after a short delay to let HTML render
       setTimeout(() => {
@@ -387,16 +425,21 @@ export function OverlayCanvas({
     } else {
       // Exiting edit mode - clear extracted elements
       setExtractedElements([]);
+      onExtractedElementsChange?.([]);
       onSelectElement(null);
     }
   };
 
   // Handle dragging extracted HTML elements
   const handleHTMLElementDrag = (extractedId: string, deltaX: number, deltaY: number) => {
-    // Normalize deltas by canvas scale to account for zoom/scaling
+    // Framer Motion provides deltas in screen/pixel coordinates
+    // We need to convert these to the scaled canvas coordinate system
+    // The canvas has a transform: scale(canvasScale) applied, so screen pixels
+    // need to be divided by the scale to get canvas coordinates
     const normalizedDeltaX = deltaX / canvasScale;
     const normalizedDeltaY = deltaY / canvasScale;
 
+    // Update the extracted elements state
     setExtractedElements((prev) =>
       prev.map((el) => {
         if (el.id === extractedId) {
@@ -414,19 +457,22 @@ export function OverlayCanvas({
       })
     );
 
-    // Update the actual HTML element's position
+    // Update the actual HTML element's position in the DOM
     const extracted = extractedElements.find((el) => el.id === extractedId);
     if (extracted && extracted.element) {
+      // Get current transform values
       const currentTransform = extracted.element.style.transform || '';
       const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
 
       let currentX = 0;
       let currentY = 0;
       if (translateMatch) {
-        currentX = parseFloat(translateMatch[1]);
-        currentY = parseFloat(translateMatch[2]);
+        currentX = parseFloat(translateMatch[1].trim());
+        currentY = parseFloat(translateMatch[2].trim());
       }
 
+      // Apply the new position - these are in the scaled coordinate system
+      // The element itself is inside the scaled container, so we apply the delta directly
       extracted.element.style.position = 'relative';
       extracted.element.style.transform = `translate(${currentX + normalizedDeltaX}px, ${currentY + normalizedDeltaY}px)`;
     }
@@ -435,7 +481,7 @@ export function OverlayCanvas({
   // If HTML template exists, render it with edit mode support
   if (config.htmlTemplate) {
     return (
-      <div ref={containerRef} className="w-full h-full min-h-[500px] flex flex-col items-center">
+      <div ref={containerRef} className="w-full flex flex-col">
         {/* Canvas Info */}
         <div className="w-full flex items-center justify-between mb-3 text-sm text-gray-400">
           <div>
@@ -448,6 +494,17 @@ export function OverlayCanvas({
               <span className="px-2 py-1 bg-green-600/20 text-green-300 rounded text-xs">
                 {extractedElements.length} Editable Elements
               </span>
+            )}
+            {editMode && (
+              <Button
+                onClick={saveModifiedHTML}
+                size="sm"
+                variant="outline"
+                className="bg-blue-600/20 border-blue-500 text-blue-200 hover:bg-blue-600/30"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                Save Changes
+              </Button>
             )}
             <Button
               onClick={toggleEditMode}
@@ -471,13 +528,15 @@ export function OverlayCanvas({
         </div>
 
         {/* HTML Content */}
-        <div
-          className="relative bg-gray-900 border-2 border-gray-700 rounded-lg shadow-2xl overflow-hidden"
-          style={{
-            width: `${canvasWidth}px`,
-            height: `${canvasHeight}px`,
-          }}
-        >
+        <div className="flex justify-center">
+          <div
+            ref={canvasContainerRef}
+            className="relative bg-gray-900 border-2 border-gray-700 rounded-lg shadow-2xl overflow-hidden"
+            style={{
+              width: `${canvasWidth}px`,
+              height: `${canvasHeight}px`,
+            }}
+          >
           {/* Preview Mode: Show in iframe */}
           {!editMode && (
             <iframe
@@ -517,6 +576,13 @@ export function OverlayCanvas({
               // Higher z-index for selected, and incrementing for others to prevent overlap issues
               const zIndex = isSelected ? 9999 : 1000 + index;
 
+              // Position overlays accounting for canvas scale
+              // The HTML container is scaled, but overlays are not, so we need to scale the positions
+              const overlayLeft = extracted.rect.x * canvasScale;
+              const overlayTop = extracted.rect.y * canvasScale;
+              const overlayWidth = extracted.rect.width * canvasScale;
+              const overlayHeight = extracted.rect.height * canvasScale;
+
               return (
                 <motion.div
                   key={extracted.id}
@@ -526,16 +592,17 @@ export function OverlayCanvas({
                       : 'border-green-500 bg-green-500/5 hover:bg-green-500/10'
                   }`}
                   style={{
-                    left: `${extracted.rect.x}px`,
-                    top: `${extracted.rect.y}px`,
-                    width: `${extracted.rect.width}px`,
-                    height: `${extracted.rect.height}px`,
+                    left: `${overlayLeft}px`,
+                    top: `${overlayTop}px`,
+                    width: `${overlayWidth}px`,
+                    height: `${overlayHeight}px`,
                     pointerEvents: 'auto',
                     zIndex: zIndex,
                   }}
                   drag
                   dragMomentum={false}
                   dragElastic={0}
+                  dragConstraints={canvasContainerRef}
                   onDragStart={() => onSelectElement(extracted.id)}
                   onDrag={(_, info) => {
                     handleHTMLElementDrag(extracted.id, info.delta.x, info.delta.y);
@@ -569,187 +636,8 @@ export function OverlayCanvas({
                 </motion.div>
               );
             })}
+          </div>
         </div>
-
-        {/* Helper text and instructions */}
-        {editMode && extractedElements.length === 0 && (
-          <div className="mt-4 text-center text-sm text-gray-400">
-            <p>No editable elements detected. The auto-tagger should run automatically.</p>
-            <p className="text-xs mt-2">Add <code className="bg-gray-700 px-1 rounded">data-editable="true"</code> to HTML elements for manual control.</p>
-          </div>
-        )}
-
-        {editMode && extractedElements.length > 0 && (
-          <div className="mt-4 p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
-            <h4 className="text-sm font-semibold text-white mb-2">📝 Edit Mode Active</h4>
-            <div className="text-xs text-gray-400 space-y-1">
-              <p>✓ {extractedElements.length} editable elements detected</p>
-              <p>💡 <strong>Tip:</strong> Add <code className="bg-gray-700 px-1 rounded text-purple-300">data-editable="true"</code> to any HTML element to make it customizable</p>
-              <p>🎯 Elements with <code className="bg-gray-700 px-1 rounded text-purple-300">data-id="your-id"</code> will use that ID for tracking</p>
-            </div>
-          </div>
-        )}
-
-        {/* Selected Element Editor */}
-        {editMode && selectedElementId && extractedElements.length > 0 && (() => {
-          const selected = extractedElements.find((el) => el.id === selectedElementId);
-          if (!selected) return null;
-
-          // Helper to convert RGB to Hex
-          const rgbToHex = (rgb: string): string => {
-            if (!rgb || rgb === 'rgba(0, 0, 0, 0)' || rgb === 'transparent') return '#000000';
-
-            const result = rgb.match(/\d+/g);
-            if (!result || result.length < 3) return '#000000';
-
-            const r = parseInt(result[0]);
-            const g = parseInt(result[1]);
-            const b = parseInt(result[2]);
-
-            return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-          };
-
-          const handleUpdate = (updates: Partial<CSSStyleDeclaration>) => {
-            Object.entries(updates).forEach(([property, value]) => {
-              if (selected.element && value) {
-                (selected.element.style as any)[property] = value;
-              }
-            });
-          };
-
-          const handleContentUpdate = (content: string) => {
-            if (selected.element) {
-              selected.element.textContent = content;
-              // Update the extracted element's textContent so it shows in the UI
-              setExtractedElements((prev) =>
-                prev.map((el) =>
-                  el.id === selected.id ? { ...el, textContent: content } : el
-                )
-              );
-            }
-          };
-
-          const currentColor = rgbToHex(selected.computedStyle.color);
-          const currentBgColor = rgbToHex(selected.computedStyle.backgroundColor);
-
-          return (
-            <div className="mt-6">
-              <Card className="bg-gray-800/50 border-gray-700">
-                <div className="p-4 border-b border-gray-700">
-                  <h3 className="text-lg font-semibold text-white">Element Properties</h3>
-                  <div className="text-sm text-gray-400 mt-1 space-y-1">
-                    <p>
-                      <span className="text-gray-500">Tag:</span> <span className="text-purple-300 font-mono">{selected.tagName}</span>
-                    </p>
-                    <p>
-                      <span className="text-gray-500">ID:</span> <span className="text-blue-300 font-mono text-xs">{selected.id}</span>
-                    </p>
-                    {selected.id.startsWith('auto-') && (
-                      <p className="text-xs text-yellow-400">
-                        ⚠️ Auto-generated ID - add <code className="bg-gray-700 px-1 rounded">data-id</code> to HTML for persistence
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="max-h-[400px] overflow-y-auto">
-                  <div className="p-4 space-y-4">
-                    {/* Text Content */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Text Content</label>
-                      <textarea
-                        key={selected.id}
-                        defaultValue={selected.textContent}
-                        onChange={(e) => handleContentUpdate(e.target.value)}
-                        className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-md text-white text-sm min-h-[80px] resize-none"
-                        placeholder="Enter text..."
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Changes apply as you type</p>
-                    </div>
-
-                    {/* Font Size */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Font Size (px)</label>
-                      <input
-                        type="number"
-                        defaultValue={parseInt(selected.computedStyle.fontSize)}
-                        onChange={(e) => handleUpdate({ fontSize: `${e.target.value}px` })}
-                        className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-md text-white text-sm"
-                      />
-                    </div>
-
-                    {/* Text Color */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Text Color</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="color"
-                          defaultValue={currentColor}
-                          onChange={(e) => handleUpdate({ color: e.target.value })}
-                          className="w-20 h-10 bg-gray-700/50 border border-gray-600 rounded-md cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          defaultValue={currentColor}
-                          onChange={(e) => handleUpdate({ color: e.target.value })}
-                          onBlur={(e) => handleUpdate({ color: e.target.value })}
-                          className="flex-1 px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-md text-white text-sm font-mono"
-                          placeholder="#000000"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Background Color */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Background Color</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="color"
-                          defaultValue={currentBgColor !== '#000000' ? currentBgColor : '#ffffff'}
-                          onChange={(e) => handleUpdate({ backgroundColor: e.target.value })}
-                          className="w-20 h-10 bg-gray-700/50 border border-gray-600 rounded-md cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          defaultValue={currentBgColor}
-                          onChange={(e) => handleUpdate({ backgroundColor: e.target.value })}
-                          onBlur={(e) => handleUpdate({ backgroundColor: e.target.value })}
-                          className="flex-1 px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-md text-white text-sm font-mono"
-                          placeholder="transparent"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Font Weight */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Font Weight</label>
-                      <select
-                        defaultValue={selected.computedStyle.fontWeight}
-                        onChange={(e) => handleUpdate({ fontWeight: e.target.value })}
-                        className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-md text-white text-sm"
-                      >
-                        <option value="300">Light</option>
-                        <option value="400">Normal</option>
-                        <option value="500">Medium</option>
-                        <option value="600">Semibold</option>
-                        <option value="700">Bold</option>
-                        <option value="800">Extra Bold</option>
-                      </select>
-                    </div>
-
-                    <div className="bg-blue-600/10 border border-blue-600/30 rounded-lg p-3 text-xs text-blue-300">
-                      <p className="font-medium mb-1">💡 Quick Tips:</p>
-                      <ul className="space-y-1 text-blue-200/80">
-                        <li>• Changes apply instantly to the preview</li>
-                        <li>• Drag the blue outline to move the element</li>
-                        <li>• Export HTML to save all your changes</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            </div>
-          );
-        })()}
       </div>
     );
   }
@@ -844,4 +732,4 @@ export function OverlayCanvas({
       </div>
     </div>
   );
-}
+});
