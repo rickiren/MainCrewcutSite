@@ -9,12 +9,13 @@ import { JSONEditor } from '@/components/video-generator/JSONEditor';
 import { EffectsPanel } from '@/components/video-generator/EffectsPanel';
 import { AnimationPanel } from '@/components/video-generator/AnimationPanel';
 import { UITemplateSelector } from '@/components/video-generator/UITemplateSelector';
+import { OverlayGeneratorAI } from '@/components/video-generator/OverlayGeneratorAI';
 import { ScriptLine, VideoStyle, VIDEO_FORMATS, VideoFormat } from '@/types/video';
 import { VideoJSONConfig, getAspectRatioDimensions } from '@/types/videoJSON';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Download, Play, Loader2, FileJson, Edit3, ArrowLeft, Video } from 'lucide-react';
+import { Download, Play, Loader2, FileJson, Edit3, ArrowLeft, Video, Layers } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import PageLayout from '@/components/PageLayout';
 import { renderMedia } from '@remotion/renderer';
@@ -34,6 +35,7 @@ const DebugPlayer: React.FC<any> = ({ playerKey, ...props }) => {
 const VideoGenerator = () => {
   const [mode, setMode] = useState<'simple' | 'json'>('simple');
   const [jsonConfig, setJsonConfig] = useState<VideoJSONConfig | null>(null);
+  const [showOverlayGenerator, setShowOverlayGenerator] = useState(false);
 
   const [scriptLines, setScriptLines] = useState<ScriptLine[]>([
     { id: '1', text: 'Welcome to Video Generator', duration: 3 },
@@ -156,7 +158,7 @@ const VideoGenerator = () => {
 
           {/* Mode Toggle */}
           <div className="text-center mb-12">
-            <div className="flex items-center justify-center gap-4">
+            <div className="flex items-center justify-center gap-4 flex-wrap">
               <Button
                 variant={mode === 'simple' ? 'default' : 'outline'}
                 onClick={() => setMode('simple')}
@@ -172,6 +174,14 @@ const VideoGenerator = () => {
               >
                 <FileJson className="w-4 h-4" />
                 JSON Mode
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowOverlayGenerator(true)}
+                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 border-0"
+              >
+                <Layers className="w-4 h-4" />
+                Overlay Generator AI
               </Button>
             </div>
           </div>
@@ -362,6 +372,9 @@ const VideoGenerator = () => {
           currentStyle={videoStyle}
           onUpdateVideo={handleAIUpdate}
         />
+
+        {/* Overlay Generator AI */}
+        {showOverlayGenerator && <OverlayGeneratorAI />}
       </div>
     </PageLayout>
   );
