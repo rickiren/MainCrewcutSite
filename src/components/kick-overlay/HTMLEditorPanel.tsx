@@ -26,6 +26,7 @@ export function HTMLEditorPanel({
   const [color, setColor] = useState('#000000');
   const [backgroundColor, setBackgroundColor] = useState('');
   const [fontWeight, setFontWeight] = useState('400');
+  const [fontFamily, setFontFamily] = useState('');
 
   const selected = extractedElements.find((el) => el.id === selectedElementId);
 
@@ -36,6 +37,7 @@ export function HTMLEditorPanel({
       setColor(rgbToHex(selected.computedStyle.color));
       setBackgroundColor(rgbToHex(selected.computedStyle.backgroundColor));
       setFontWeight(selected.computedStyle.fontWeight || '400');
+      setFontFamily(selected.computedStyle.fontFamily || '');
     }
   }, [selected]);
 
@@ -52,7 +54,27 @@ export function HTMLEditorPanel({
   const handleContentUpdate = (content: string) => {
     if (selected) {
       setTextContent(content);
-      selected.element.textContent = content;
+
+      // Preserve inline styles and structure by using innerHTML for simple text
+      // If the element has no child elements, we can safely use textContent
+      // Otherwise, try to update just the text nodes to preserve structure
+      if (selected.element.children.length === 0) {
+        // No child elements, safe to use textContent
+        selected.element.textContent = content;
+      } else {
+        // Has child elements, update innerHTML carefully
+        // This preserves child elements like <span>, <strong>, etc.
+        const firstTextNode = Array.from(selected.element.childNodes).find(
+          node => node.nodeType === Node.TEXT_NODE
+        );
+        if (firstTextNode) {
+          firstTextNode.textContent = content;
+        } else {
+          // Fallback to innerHTML if no text nodes
+          selected.element.innerHTML = content;
+        }
+      }
+
       onUpdateElement(selected.id, { content });
     }
   };
@@ -278,11 +300,36 @@ export function HTMLEditorPanel({
                 </select>
               </div>
 
+              {/* Font Family */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Font Family</label>
+                <select
+                  value={fontFamily}
+                  onChange={(e) => {
+                    setFontFamily(e.target.value);
+                    handleStyleUpdate('fontFamily', e.target.value);
+                  }}
+                  className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-md text-white text-sm"
+                >
+                  <option value="">Default (from HTML)</option>
+                  <option value="Arial, sans-serif">Arial</option>
+                  <option value="'Helvetica Neue', Helvetica, sans-serif">Helvetica</option>
+                  <option value="'Times New Roman', Times, serif">Times New Roman</option>
+                  <option value="Georgia, serif">Georgia</option>
+                  <option value="'Courier New', Courier, monospace">Courier New</option>
+                  <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
+                  <option value="Impact, fantasy">Impact</option>
+                  <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+                  <option value="Verdana, sans-serif">Verdana</option>
+                </select>
+              </div>
+
               <div className="bg-blue-600/10 border border-blue-600/30 rounded-lg p-3 text-xs text-blue-300">
                 <p className="font-medium mb-1">💡 Quick Tips:</p>
                 <ul className="space-y-1 text-blue-200/80">
                   <li>• Changes apply instantly to the preview</li>
                   <li>• Drag the blue outline to move the element</li>
+                  <li>• Drag corner/edge handles to resize</li>
                   <li>• Export HTML to save all your changes</li>
                 </ul>
               </div>
