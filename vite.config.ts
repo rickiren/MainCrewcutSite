@@ -114,6 +114,142 @@ export default defineConfig(({ mode }) => {
           }
         });
 
+        // Add Claude Overlay API middleware for local development
+        server.middlewares.use('/api/claude-overlay', async (req, res, next) => {
+          // Set CORS headers
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+          // Handle preflight
+          if (req.method === 'OPTIONS') {
+            res.writeHead(200);
+            res.end();
+            return;
+          }
+
+          // Only handle POST requests
+          if (req.method !== 'POST') {
+            res.writeHead(405, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Method not allowed' }));
+            return;
+          }
+
+          try {
+            let body = '';
+            req.on('data', chunk => {
+              body += chunk.toString();
+            });
+
+            req.on('end', async () => {
+              try {
+                const { currentHTML, currentCSS, userRequest } = JSON.parse(body);
+                
+                // Load API key from environment variables
+                const apiKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_CLAUDE_API_KEY || env.VITE_CLAUDE_API_KEY;
+                
+                if (!apiKey) {
+                  res.writeHead(500, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: 'Claude API key not configured. Set ANTHROPIC_API_KEY or VITE_CLAUDE_API_KEY in your .env file' }));
+                  return;
+                }
+
+                if (!userRequest) {
+                  res.writeHead(400, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: 'User request is required' }));
+                  return;
+                }
+
+                // Build the system prompt for overlay editing
+                const systemPrompt = `You are an expert HTML/CSS overlay designer for streaming platforms like Kick. Your job is to make precise, real-time edits to HTML and CSS based on user requests.
+
+IMPORTANT INSTRUCTIONS:
+- When the user asks to change text, colors, sizes, positions, or styling, make ONLY those specific changes
+- Preserve ALL existing HTML structure, classes, IDs, and attributes unless explicitly asked to change them
+- Keep the response format consistent: always include the complete updated HTML and CSS
+- If only HTML changes are needed, still include the CSS (even if unchanged)
+- If only CSS changes are needed, still include the HTML (even if unchanged)
+- Make changes directly to the code - don't just describe what to change
+
+Current HTML:
+\`\`\`html
+${currentHTML || '(No HTML yet)'}
+\`\`\`
+
+Current CSS:
+\`\`\`css
+${currentCSS || '(No CSS yet)'}
+\`\`\`
+
+RESPONSE FORMAT (REQUIRED):
+1. A brief explanation (1-2 sentences) of what you changed
+2. The COMPLETE updated HTML wrapped in \`\`\`html code block
+3. The COMPLETE updated CSS wrapped in \`\`\`css code block
+
+Example response format:
+"I've changed the text color to blue and updated the heading text.
+
+\`\`\`html
+<div>...</div>
+\`\`\`
+
+\`\`\`css
+body { color: blue; }
+\`\`\`"`;
+
+                const response = await fetch('https://api.anthropic.com/v1/messages', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': apiKey,
+                    'anthropic-version': '2023-06-01'
+                  },
+                  body: JSON.stringify({
+                    model: 'claude-3-5-sonnet-20240620',
+                    max_tokens: 4096,
+                    messages: [
+                      {
+                        role: 'user',
+                        content: userRequest
+                      }
+                    ],
+                    system: systemPrompt
+                  })
+                });
+
+                if (!response.ok) {
+                  const errorData = await response.json().catch(() => ({}));
+                  throw new Error(`Claude API error: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`);
+                }
+
+                const data = await response.json();
+                const text = Array.isArray(data?.content)
+                  ? data.content
+                    .map((block) => (block?.type === 'text' && typeof block?.text === 'string' ? block.text : ''))
+                    .filter(Boolean)
+                    .join('\n\n')
+                  : '';
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                  text,
+                  usage: data.usage
+                }));
+              } catch (error) {
+                console.error('Error in Claude Overlay API middleware:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                  error: error instanceof Error ? error.message : 'Unknown error' 
+                }));
+              }
+            });
+          } catch (error) {
+            console.error('Error parsing request:', error);
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid request body' }));
+          }
+        });
+
         // Add Resend API middleware for local development
         server.middlewares.use('/api/resend', async (req, res, next) => {
           // Handle OPTIONS preflight

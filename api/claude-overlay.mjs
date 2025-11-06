@@ -30,7 +30,15 @@ export default async function handler(req, res) {
     }
 
     // Build the system prompt for overlay editing
-    const systemPrompt = `You are an expert HTML/CSS overlay designer for streaming platforms like Kick.
+    const systemPrompt = `You are an expert HTML/CSS overlay designer for streaming platforms like Kick. Your job is to make precise, real-time edits to HTML and CSS based on user requests.
+
+IMPORTANT INSTRUCTIONS:
+- When the user asks to change text, colors, sizes, positions, or styling, make ONLY those specific changes
+- Preserve ALL existing HTML structure, classes, IDs, and attributes unless explicitly asked to change them
+- Keep the response format consistent: always include the complete updated HTML and CSS
+- If only HTML changes are needed, still include the CSS (even if unchanged)
+- If only CSS changes are needed, still include the HTML (even if unchanged)
+- Make changes directly to the code - don't just describe what to change
 
 Current HTML:
 \`\`\`html
@@ -42,12 +50,21 @@ Current CSS:
 ${currentCSS || '(No CSS yet)'}
 \`\`\`
 
-Please respond with:
-1. A brief explanation of what you'll change
-2. The complete updated HTML wrapped in \`\`\`html tags
-3. The complete updated CSS wrapped in \`\`\`css tags (if CSS changes are needed)
+RESPONSE FORMAT (REQUIRED):
+1. A brief explanation (1-2 sentences) of what you changed
+2. The COMPLETE updated HTML wrapped in \`\`\`html code block
+3. The COMPLETE updated CSS wrapped in \`\`\`css code block
 
-Keep the changes minimal and focused on the user's request. Maintain the existing structure unless asked to change it.`;
+Example response format:
+"I've changed the text color to blue and updated the heading text.
+
+\`\`\`html
+<div>...</div>
+\`\`\`
+
+\`\`\`css
+body { color: blue; }
+\`\`\`"`;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -57,7 +74,7 @@ Keep the changes minimal and focused on the user's request. Maintain the existin
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-3-5-sonnet-20240620',
         max_tokens: 4096,
         messages: [
           {

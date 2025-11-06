@@ -3,6 +3,7 @@ import { MessageSquare, Send, X, Loader2, Sparkles, Minimize2, Maximize2 } from 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
+import { claudeAPI, ClaudeMessage } from '@/services/claudeApi';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -30,6 +31,9 @@ export function AIChatBubble({ currentHTML, currentCSS, onHTMLUpdate }: AIChatBu
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastHTMLRef = useRef<string>('');
+  const lastCSSRef = useRef<string>('');
+  const htmlCSSInitializedRef = useRef<boolean>(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -38,6 +42,15 @@ export function AIChatBubble({ currentHTML, currentCSS, onHTMLUpdate }: AIChatBu
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Reset HTML/CSS tracking when chat closes or HTML/CSS changes externally
+  useEffect(() => {
+    if (!isOpen) {
+      lastHTMLRef.current = '';
+      lastCSSRef.current = '';
+      htmlCSSInitializedRef.current = false;
+    }
+  }, [isOpen, currentHTML, currentCSS]);
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -48,51 +61,147 @@ export function AIChatBubble({ currentHTML, currentCSS, onHTMLUpdate }: AIChatBu
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const currentInput = input;
     setInput('');
     setIsLoading(true);
 
+    // Build conversation history BEFORE adding the new message to state
+    const conversationHistory: ClaudeMessage[] = messages.map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    })) as ClaudeMessage[];
+
+    // Add user message to UI
+    setMessages((prev) => [...prev, userMessage]);
+
     try {
-      // Call backend API which handles Claude integration
-      const response = await fetch('/api/claude-overlay', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          currentHTML: currentHTML || '',
-          currentCSS: currentCSS || '',
-          userRequest: input,
-        }),
-      });
+      // Always include current HTML/CSS to ensure AI has full context
+      // This prevents the AI from removing content
+      let userMessage = '';
+      if (currentHTML || currentCSS) {
+        userMessage = `Current overlay:
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `API error: ${response.status}`);
+\`\`\`html
+${currentHTML || ''}
+\`\`\`
+
+\`\`\`css
+${currentCSS || ''}
+\`\`\`
+
+User request: ${currentInput}`;
+      } else {
+        userMessage = currentInput;
+      }
+      
+      // Update refs
+      lastHTMLRef.current = currentHTML;
+      lastCSSRef.current = currentCSS;
+      htmlCSSInitializedRef.current = true;
+
+      // Enhanced system prompt with strong preservation instructions
+      const systemPrompt = `You are an expert HTML/CSS overlay designer. You make PRECISE, MINIMAL edits.
+
+CRITICAL RULES:
+1. PRESERVE ALL existing content, elements, classes, IDs, and attributes
+2. Make ONLY the specific change requested by the user
+3. NEVER remove or delete anything unless explicitly asked
+4. If user says "change X", keep everything else exactly the same
+5. Always return the COMPLETE HTML and CSS (even if only one changed)
+
+RESPONSE FORMAT:
+1. Brief explanation (1 sentence)
+2. Complete HTML in \`\`\`html code block
+3. Complete CSS in \`\`\`css code block
+
+Example: User says "change text color to blue"
+- Keep ALL HTML exactly the same
+- Only modify CSS color property
+- Return complete HTML and CSS`;
+
+      // Call Claude API using the service (same as other parts of the site)
+      const assistantContent = await claudeAPI.chat(userMessage, conversationHistory, systemPrompt);
+
+      // Parse HTML and CSS from response - try multiple patterns
+      let htmlMatch = assistantContent.match(/```html\n([\s\S]*?)\n```/);
+      let cssMatch = assistantContent.match(/```css\n([\s\S]*?)\n```/);
+      
+      // Try alternative patterns if first attempt fails
+      if (!htmlMatch) {
+        htmlMatch = assistantContent.match(/```html\s*\n([\s\S]*?)\n```/);
+      }
+      if (!htmlMatch) {
+        htmlMatch = assistantContent.match(/<html>([\s\S]*?)<\/html>/i);
+      }
+      if (!htmlMatch && assistantContent.includes('<div') || assistantContent.includes('<span')) {
+        // Try to extract HTML-like content
+        const htmlStart = assistantContent.indexOf('<');
+        const htmlEnd = assistantContent.lastIndexOf('>');
+        if (htmlStart !== -1 && htmlEnd !== -1 && htmlEnd > htmlStart) {
+          const potentialHTML = assistantContent.substring(htmlStart, htmlEnd + 1);
+          if (potentialHTML.includes('<') && potentialHTML.includes('>')) {
+            htmlMatch = [null, potentialHTML];
+          }
+        }
+      }
+      
+      if (!cssMatch) {
+        cssMatch = assistantContent.match(/```css\s*\n([\s\S]*?)\n```/);
+      }
+      if (!cssMatch) {
+        cssMatch = assistantContent.match(/<style>([\s\S]*?)<\/style>/i);
       }
 
-      const data = await response.json();
-      const assistantContent = data.text;
+      // Apply changes if we found HTML, otherwise show the response as-is
+      if (htmlMatch && htmlMatch[1]) {
+        const newHTML = htmlMatch[1].trim();
+        const newCSS = (cssMatch && cssMatch[1]) ? cssMatch[1].trim() : currentCSS;
 
-      // Parse HTML and CSS from response
-      const htmlMatch = assistantContent.match(/```html\n([\s\S]*?)\n```/);
-      const cssMatch = assistantContent.match(/```css\n([\s\S]*?)\n```/);
-
-      if (htmlMatch) {
-        const newHTML = htmlMatch[1];
-        const newCSS = cssMatch ? cssMatch[1] : currentCSS;
-
-        // Apply the changes
-        onHTMLUpdate(newHTML, newCSS);
+        // Safety check: Don't apply if result seems empty or too different
+        // This prevents accidental deletion
+        const htmlLengthDiff = Math.abs(newHTML.length - (currentHTML?.length || 0));
+        const isSignificantChange = htmlLengthDiff > (currentHTML?.length || 0) * 0.5; // More than 50% change
+        
+        // Safety check: Don't apply if result seems suspiciously small
+        if (newHTML.length < 50 && currentHTML && currentHTML.length > 100) {
+          // Result is suspiciously small - don't apply automatically
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: assistantContent + '\n\n⚠️ Warning: The result seems incomplete (too small). Please review the changes above. If they look correct, you can manually copy the HTML/CSS from the code blocks.',
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+        } else {
+          // Apply the changes immediately for real-time preview
+          onHTMLUpdate(newHTML, newCSS);
+          
+          // Update refs to track the new HTML/CSS
+          lastHTMLRef.current = newHTML;
+          lastCSSRef.current = newCSS;
+        
+          // Extract explanation text (text before code blocks)
+          const explanationMatch = assistantContent.match(/^([^`]*?)(?:```|$)/);
+          const explanation = explanationMatch ? explanationMatch[1].trim() : '';
+          
+          // Show response with explanation
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: explanation 
+              ? `${explanation}\n\n✅ Changes have been applied to your overlay in real-time!`
+              : "✅ Changes have been applied to your overlay in real-time!",
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+        }
+      } else {
+        // If we couldn't parse HTML, show the full response
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: assistantContent + '\n\n⚠️ Note: Could not automatically parse and apply changes. Please check the response above.',
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
       }
-
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: assistantContent,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Error calling Claude API:', error);
 
