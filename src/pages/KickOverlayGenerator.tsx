@@ -4,12 +4,12 @@ import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Download, Sparkles, Save, Undo2, Redo2, Upload } from 'lucide-react';
-import { OverlayCanvas } from '@/components/kick-overlay/OverlayCanvas';
+import { OverlayCanvas, type ExtractedHTMLElement, type OverlayCanvasHandle } from '@/components/kick-overlay/OverlayCanvas';
 import { ElementPanel } from '@/components/kick-overlay/ElementPanel';
 import { StyleCustomizer } from '@/components/kick-overlay/StyleCustomizer';
 import { AIOverlayGenerator } from '@/components/kick-overlay/AIOverlayGenerator';
 import { TemplateSelector } from '@/components/kick-overlay/TemplateSelector';
-import { HTMLElementEditor } from '@/components/kick-overlay/HTMLElementEditor';
+import { HTMLEditorPanel } from '@/components/kick-overlay/HTMLEditorPanel';
 import type { OverlayConfig, OverlayElement, OverlayTheme } from '@/types/overlay';
 import { OVERLAY_THEMES, CANVAS_PRESETS } from '@/types/overlay';
 
@@ -31,6 +31,8 @@ export default function KickOverlayGenerator() {
   const [showAIGenerator, setShowAIGenerator] = useState(false);
   const [selectedHTMLElement, setSelectedHTMLElement] = useState<HTMLElement | null>(null);
   const [isHTMLEditMode, setIsHTMLEditMode] = useState(false);
+  const [htmlEditMode, setHtmlEditMode] = useState(false);
+  const [extractedElements, setExtractedElements] = useState<ExtractedHTMLElement[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Track when user selects an HTML element (IDs starting with 'html-')
@@ -110,6 +112,42 @@ export default function KickOverlayGenerator() {
       ),
     }));
   };
+
+  // Handle HTML element updates
+  const handleHTMLElementUpdate = (elementId: string, updates: { content?: string; style?: Partial<CSSStyleDeclaration> }) => {
+    // Update the extracted elements state
+    setExtractedElements((prev) =>
+      prev.map((el) => {
+        if (el.id === elementId) {
+          if (updates.content !== undefined) {
+            return { ...el, textContent: updates.content };
+          }
+          return el;
+        }
+        return el;
+      })
+    );
+  };
+
+  // Handle saving modified HTML
+  const handleSaveHTML = (html: string, css: string) => {
+    setOverlayConfig(prev => ({
+      ...prev,
+      htmlTemplate: html,
+      cssTemplate: css,
+    }));
+    // Save to localStorage for persistence
+    try {
+      localStorage.setItem('kick-overlay-html-template', html);
+      localStorage.setItem('kick-overlay-css-template', css);
+      console.log('✅ Changes saved successfully!');
+    } catch (e) {
+      console.warn('Failed to save to localStorage:', e);
+    }
+  };
+
+  // Create a ref to trigger save from OverlayCanvas
+  const overlayCanvasRef = useRef<OverlayCanvasHandle | null>(null);
 
   // Remove an element
   const handleRemoveElement = (elementId: string) => {
@@ -288,8 +326,8 @@ export default function KickOverlayGenerator() {
         onChange={handleFileInputChange}
         className="hidden"
       />
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 pt-20">
-        <div className="px-4 sm:px-6 lg:px-8 max-w-[1800px] mx-auto pb-12">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 pt-20 pb-12 relative z-10">
+        <div className="px-4 sm:px-6 lg:px-8 max-w-[1800px] mx-auto">
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -370,66 +408,86 @@ export default function KickOverlayGenerator() {
                   </p>
                 </div>
                 <OverlayCanvas
+                  ref={overlayCanvasRef}
                   config={overlayConfig}
                   selectedElementId={selectedElementId}
                   onSelectElement={setSelectedElementId}
                   onUpdateElement={handleUpdateElement}
                   onRemoveElement={handleRemoveElement}
+                  onEditModeChange={setHtmlEditMode}
+                  onExtractedElementsChange={setExtractedElements}
+                  onSaveHTML={handleSaveHTML}
                 />
               </Card>
             </div>
 
             {/* Right: Editor Controls */}
             <div className="lg:col-span-1">
-              <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm p-6">
-                <Tabs value={activeTab} onValueChange={setActiveTab}>
-                  <TabsList className="grid w-full grid-cols-3 mb-6">
-                    <TabsTrigger value="elements">Elements</TabsTrigger>
-                    <TabsTrigger value="style">Style</TabsTrigger>
-                    <TabsTrigger value="templates">Templates</TabsTrigger>
-                  </TabsList>
+              <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm p-6 max-h-[calc(100vh-12rem)] overflow-y-auto">
+                {overlayConfig.htmlTemplate ? (
+                  /* HTML Template Mode - Show HTML Editor */
+                  <HTMLEditorPanel
+                    editMode={htmlEditMode}
+                    extractedElements={extractedElements}
+                    selectedElementId={selectedElementId}
+                    onSelectElement={setSelectedElementId}
+                    onUpdateElement={handleHTMLElementUpdate}
+                    onSave={() => {
+                      // Trigger save from OverlayCanvas
+                      overlayCanvasRef.current?.save();
+                    }}
+                  />
+                ) : (
+                  /* Regular Element Mode - Show Tabs */
+                  <Tabs value={activeTab} onValueChange={setActiveTab}>
+                    <TabsList className="grid w-full grid-cols-3 mb-6">
+                      <TabsTrigger value="elements">Elements</TabsTrigger>
+                      <TabsTrigger value="style">Style</TabsTrigger>
+                      <TabsTrigger value="templates">Templates</TabsTrigger>
+                    </TabsList>
 
-                  <TabsContent value="elements" className="space-y-4">
-                    <ElementPanel
-                      onAddElement={handleAddElement}
-                      selectedElement={selectedElement}
-                      onUpdateElement={(updates) => {
-                        if (selectedElementId) {
-                          handleUpdateElement(selectedElementId, updates);
-                        }
-                      }}
-                      theme={overlayConfig.theme}
-                    />
-                  </TabsContent>
+                    <TabsContent value="elements" className="space-y-4">
+                      <ElementPanel
+                        onAddElement={handleAddElement}
+                        selectedElement={selectedElement}
+                        onUpdateElement={(updates) => {
+                          if (selectedElementId) {
+                            handleUpdateElement(selectedElementId, updates);
+                          }
+                        }}
+                        theme={overlayConfig.theme}
+                      />
+                    </TabsContent>
 
-                  <TabsContent value="style" className="space-y-4">
-                    <StyleCustomizer
-                      config={overlayConfig}
-                      selectedElement={selectedElement}
-                      onUpdateConfig={(updates) => {
-                        setOverlayConfig(prev => ({ ...prev, ...updates }));
-                      }}
-                      onUpdateElement={(updates) => {
-                        if (selectedElementId) {
-                          handleUpdateElement(selectedElementId, updates);
-                        }
-                      }}
-                      onThemeChange={handleThemeChange}
-                    />
-                  </TabsContent>
+                    <TabsContent value="style" className="space-y-4">
+                      <StyleCustomizer
+                        config={overlayConfig}
+                        selectedElement={selectedElement}
+                        onUpdateConfig={(updates) => {
+                          setOverlayConfig(prev => ({ ...prev, ...updates }));
+                        }}
+                        onUpdateElement={(updates) => {
+                          if (selectedElementId) {
+                            handleUpdateElement(selectedElementId, updates);
+                          }
+                        }}
+                        onThemeChange={handleThemeChange}
+                      />
+                    </TabsContent>
 
-                  <TabsContent value="templates" className="space-y-4">
-                    <TemplateSelector
-                      onSelectTemplate={(template) => {
-                        setOverlayConfig(prev => ({
-                          ...prev,
-                          elements: template.elements,
-                          theme: template.theme,
-                        }));
-                      }}
-                    />
-                  </TabsContent>
-                </Tabs>
+                    <TabsContent value="templates" className="space-y-4">
+                      <TemplateSelector
+                        onSelectTemplate={(template) => {
+                          setOverlayConfig(prev => ({
+                            ...prev,
+                            elements: template.elements,
+                            theme: template.theme,
+                          }));
+                        }}
+                      />
+                    </TabsContent>
+                  </Tabs>
+                )}
               </Card>
             </div>
           </div>
