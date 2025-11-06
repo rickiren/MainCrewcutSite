@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Code, FileCode, Layers, Grid, Layout } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Code, FileCode, Layers, Grid, Layout, Upload, File } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -297,9 +297,92 @@ export const HTMLTemplateLibrary: React.FC<HTMLTemplateLibraryProps> = ({
 }) => {
   const [customHTML, setCustomHTML] = useState('');
   const [customCSS, setCustomCSS] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleTemplateClick = (template: HTMLTemplate) => {
     onTemplateSelect(template.html, template.css);
+  };
+
+  const parseHTMLFile = (htmlContent: string) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlContent, 'text/html');
+
+    let extractedHTML = '';
+    let extractedCSS = '';
+
+    // Extract CSS from <style> tags
+    const styleTags = doc.querySelectorAll('style');
+    styleTags.forEach(style => {
+      extractedCSS += style.textContent + '\n';
+    });
+
+    // Extract inline styles from style attribute on body
+    const body = doc.querySelector('body');
+    if (body) {
+      const bodyStyle = body.getAttribute('style');
+      if (bodyStyle) {
+        extractedCSS = `body { ${bodyStyle} }\n` + extractedCSS;
+      }
+    }
+
+    // Get the body content or full HTML if no body
+    if (body && body.innerHTML.trim()) {
+      extractedHTML = body.innerHTML;
+    } else {
+      extractedHTML = htmlContent;
+    }
+
+    return { html: extractedHTML, css: extractedCSS };
+  };
+
+  const handleFileUpload = (file: File) => {
+    if (file.type === 'text/html' || file.name.endsWith('.html')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        const { html, css } = parseHTMLFile(content);
+        setCustomHTML(html);
+        setCustomCSS(css);
+        setUploadedFileName(file.name);
+        onTemplateSelect(html, css);
+      };
+      reader.readAsText(file);
+    } else {
+      alert('Please upload an HTML file (.html)');
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleFileUpload(files[0]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileUpload(files[0]);
+    }
+  };
+
+  const handleBrowseClick = () => {
+    fileInputRef.current?.click();
   };
 
   const handleCustomSubmit = () => {
@@ -310,11 +393,80 @@ export const HTMLTemplateLibrary: React.FC<HTMLTemplateLibraryProps> = ({
 
   return (
     <div className="w-full">
-      <Tabs defaultValue="templates" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="templates">Starter Templates</TabsTrigger>
-          <TabsTrigger value="custom">Custom HTML</TabsTrigger>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".html,text/html"
+        onChange={handleFileInputChange}
+        className="hidden"
+      />
+      <Tabs defaultValue="upload" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="upload">Upload HTML</TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="custom">Custom Code</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="upload" className="space-y-4">
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+              isDragging
+                ? 'border-purple-500 bg-purple-50'
+                : 'border-gray-300 hover:border-purple-400 hover:bg-gray-50'
+            }`}
+            onClick={handleBrowseClick}
+          >
+            <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+            <h3 className="text-lg font-semibold mb-2">
+              {uploadedFileName ? 'File Uploaded!' : 'Drop your HTML file here'}
+            </h3>
+            {uploadedFileName ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-center gap-2 text-green-600">
+                  <File className="w-5 h-5" />
+                  <span className="font-medium">{uploadedFileName}</span>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Your HTML has been loaded and is ready to customize!
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleBrowseClick();
+                  }}
+                  className="mt-2"
+                >
+                  Upload Different File
+                </Button>
+              </div>
+            ) : (
+              <>
+                <p className="text-gray-600 mb-2">
+                  or click to browse your files
+                </p>
+                <p className="text-sm text-gray-500">
+                  Upload an HTML file to use as your starting template
+                </p>
+              </>
+            )}
+          </div>
+
+          {uploadedFileName && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="font-semibold text-blue-900 mb-2">Next Steps:</h4>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Your HTML is now displayed in the preview</li>
+                <li>• Click on elements to select and edit them</li>
+                <li>• Drag elements to reposition them</li>
+                <li>• Use the properties panel to customize styles</li>
+              </ul>
+            </div>
+          )}
+        </TabsContent>
 
         <TabsContent value="templates">
           <ScrollArea className="h-[500px] pr-4">
