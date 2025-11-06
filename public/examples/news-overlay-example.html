@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1920, height=1080">
+  <title>News Broadcast Overlay - Editable Example</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 1920px;
+      height: 1080px;
+      font-family: 'Arial', sans-serif;
+      background: transparent;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Top Banner with data-editable attributes */
+    .top-banner {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 120px;
+      background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+
+    .channel-title {
+      font-size: 48px;
+      font-weight: 900;
+      color: white;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      text-shadow: 3px 3px 6px rgba(0,0,0,0.5);
+    }
+
+    .live-indicator {
+      background: #ef4444;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 24px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    /* Diagonal Ribbon */
+    .ribbon {
+      position: absolute;
+      top: 200px;
+      left: -50px;
+      width: 400px;
+      background: #f59e0b;
+      color: white;
+      text-align: center;
+      padding: 15px 20px;
+      transform: rotate(-10deg);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      z-index: 10;
+    }
+
+    .ribbon-text {
+      font-size: 28px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    /* Webcam Frame */
+    .webcam-frame {
+      position: absolute;
+      bottom: 100px;
+      right: 60px;
+      width: 420px;
+      height: 320px;
+      border: 6px solid white;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+      background: rgba(0,0,0,0.3);
+      backdrop-filter: blur(10px);
+    }
+
+    .webcam-inner {
+      width: 100%;
+      height: 100%;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+      opacity: 0.3;
+    }
+
+    .webcam-label {
+      position: absolute;
+      bottom: -40px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      color: white;
+      font-size: 22px;
+      font-weight: bold;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+    }
+
+    /* Social Media Callout */
+    .social-callout {
+      position: absolute;
+      top: 350px;
+      left: 60px;
+      background: rgba(59, 130, 246, 0.95);
+      backdrop-filter: blur(10px);
+      padding: 30px 40px;
+      border-radius: 20px;
+      border: 3px solid white;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .social-text {
+      color: white;
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .social-handle {
+      color: #fbbf24;
+      font-size: 32px;
+      font-weight: bold;
+    }
+
+    /* Chat Box */
+    .chat-box {
+      position: absolute;
+      left: 60px;
+      top: 550px;
+      width: 380px;
+      height: 280px;
+      background: rgba(30, 41, 59, 0.95);
+      backdrop-filter: blur(10px);
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .chat-header {
+      color: white;
+      font-size: 22px;
+      font-weight: bold;
+      margin-bottom: 12px;
+      border-bottom: 2px solid rgba(255,255,255,0.2);
+      padding-bottom: 8px;
+    }
+
+    /* Events Panel */
+    .events-panel {
+      position: absolute;
+      right: 60px;
+      top: 200px;
+      width: 420px;
+      height: 200px;
+      background: rgba(17, 24, 39, 0.95);
+      backdrop-filter: blur(10px);
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .events-header {
+      color: white;
+      font-size: 22px;
+      font-weight: bold;
+      margin-bottom: 12px;
+      border-bottom: 2px solid rgba(59, 130, 246, 0.5);
+      padding-bottom: 8px;
+    }
+
+    /* Bottom Bar */
+    .bottom-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 80px;
+      background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 50%, #1e3a8a 100%);
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+    }
+  </style>
+</head>
+<body>
+  <!-- Top Banner - ALL elements marked with data-editable="true" -->
+  <div class="top-banner" data-editable="true" data-id="top-banner">
+    <div class="channel-title" data-editable="true" data-id="channel-title">
+      MOTHER APPROVED NEWS
+    </div>
+    <div class="live-indicator" data-editable="true" data-id="live-indicator">● LIVE</div>
+  </div>
+
+  <!-- Ribbon -->
+  <div class="ribbon" data-editable="true" data-id="ribbon">
+    <div class="ribbon-text" data-editable="true" data-id="ribbon-text">On Air Now!</div>
+  </div>
+
+  <!-- Webcam Frame -->
+  <div class="webcam-frame" data-editable="true" data-id="webcam-frame">
+    <div class="webcam-inner"></div>
+    <div class="webcam-label" data-editable="true" data-id="webcam-label">Your Host</div>
+  </div>
+
+  <!-- Social Media Callout -->
+  <div class="social-callout" data-editable="true" data-id="social-callout">
+    <div class="social-text" data-editable="true" data-id="social-text">Follow the show!</div>
+    <div class="social-handle" data-editable="true" data-id="social-handle">@YourHandle</div>
+  </div>
+
+  <!-- Chat Box -->
+  <div class="chat-box" data-editable="true" data-id="chat-box">
+    <div class="chat-header" data-editable="true" data-id="chat-header">Live Chat</div>
+  </div>
+
+  <!-- Events Panel -->
+  <div class="events-panel" data-editable="true" data-id="events-panel">
+    <div class="events-header" data-editable="true" data-id="events-header">Recent Events</div>
+  </div>
+
+  <!-- Bottom Bar -->
+  <div class="bottom-bar" data-editable="true" data-id="bottom-bar"></div>
+</body>
+</html>

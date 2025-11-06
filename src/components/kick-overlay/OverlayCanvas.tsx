@@ -257,44 +257,105 @@ export function OverlayCanvas({
     }
   }, [config.htmlTemplate, config.cssTemplate, config.canvas.width, config.canvas.height, editMode]);
 
+  // Auto-tag common editable elements if no data-editable attributes found
+  const autoTagEditableElements = () => {
+    if (!htmlContainerRef.current) return 0;
+
+    // Common classes and selectors that should be editable
+    const commonEditableClasses = [
+      'channel-title', 'live-indicator', 'ribbon', 'ribbon-text',
+      'webcam-frame', 'webcam-label', 'social-callout', 'social-text',
+      'social-handle', 'chat-box', 'chat-header', 'events-panel',
+      'events-header', 'bottom-bar', 'top-banner', 'title', 'subtitle',
+      'header', 'footer', 'label', 'caption', 'heading'
+    ];
+
+    // Common tag names for text content
+    const commonEditableTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'button', 'a', 'span', 'label'];
+
+    let taggedCount = 0;
+
+    // Tag by common classes
+    commonEditableClasses.forEach((className) => {
+      const elements = htmlContainerRef.current?.querySelectorAll(`.${className}`);
+      elements?.forEach((el) => {
+        if (!el.hasAttribute('data-editable')) {
+          el.setAttribute('data-editable', 'true');
+          if (!el.hasAttribute('data-id')) {
+            el.setAttribute('data-id', `auto-${className}-${Date.now()}`);
+          }
+          taggedCount++;
+        }
+      });
+    });
+
+    // Tag common text elements if they have meaningful content
+    commonEditableTags.forEach((tagName) => {
+      const elements = htmlContainerRef.current?.querySelectorAll(tagName);
+      elements?.forEach((el) => {
+        const text = el.textContent?.trim();
+        // Only tag if it has text, no data-editable yet, and not too many children
+        if (text && text.length > 0 && text.length < 200 && !el.hasAttribute('data-editable') && el.children.length === 0) {
+          el.setAttribute('data-editable', 'true');
+          if (!el.hasAttribute('data-id')) {
+            el.setAttribute('data-id', `auto-${tagName}-${Date.now()}`);
+          }
+          taggedCount++;
+        }
+      });
+    });
+
+    return taggedCount;
+  };
+
   // Extract elements from HTML when entering edit mode
   const extractElementsFromHTML = () => {
     if (!htmlContainerRef.current) return;
 
     const extracted: ExtractedHTMLElement[] = [];
-    const selectorsToExtract = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'button', 'a', 'span', 'label'];
 
-    selectorsToExtract.forEach((selector) => {
-      const elements = htmlContainerRef.current?.querySelectorAll(selector);
-      elements?.forEach((el, index) => {
-        const htmlEl = el as HTMLElement;
-        const text = htmlEl.textContent?.trim();
+    // First, check if there are any manually tagged data-editable elements
+    let editableElements = htmlContainerRef.current.querySelectorAll('[data-editable="true"]');
 
-        // Only extract elements with meaningful text and no complex children
-        if (text && text.length > 0 && text.length < 200 && htmlEl.children.length === 0) {
-          const rect = htmlEl.getBoundingClientRect();
-          const containerRect = htmlContainerRef.current?.getBoundingClientRect();
+    // If no manually tagged elements found, auto-tag common ones
+    if (editableElements.length === 0) {
+      const taggedCount = autoTagEditableElements();
+      console.log(`Auto-tagged ${taggedCount} elements as editable`);
+      // Re-query after auto-tagging
+      editableElements = htmlContainerRef.current.querySelectorAll('[data-editable="true"]');
+    }
 
-          if (rect && containerRect) {
-            extracted.push({
-              id: `html-${selector}-${index}-${Date.now()}`,
-              element: htmlEl,
-              tagName: selector,
-              textContent: text,
-              rect: new DOMRect(
-                rect.left - containerRect.left,
-                rect.top - containerRect.top,
-                rect.width,
-                rect.height
-              ),
-              computedStyle: window.getComputedStyle(htmlEl),
-            });
-          }
-        }
-      });
+    // Extract all data-editable elements
+    editableElements.forEach((el, index) => {
+      const htmlEl = el as HTMLElement;
+      const text = htmlEl.textContent?.trim();
+
+      // Get data-id or generate one
+      const dataId = htmlEl.getAttribute('data-id') || `element-${index}-${Date.now()}`;
+
+      // Extract element info
+      const rect = htmlEl.getBoundingClientRect();
+      const containerRect = htmlContainerRef.current?.getBoundingClientRect();
+
+      if (rect && containerRect) {
+        extracted.push({
+          id: dataId,
+          element: htmlEl,
+          tagName: htmlEl.tagName.toLowerCase(),
+          textContent: text || '',
+          rect: new DOMRect(
+            rect.left - containerRect.left,
+            rect.top - containerRect.top,
+            rect.width,
+            rect.height
+          ),
+          computedStyle: window.getComputedStyle(htmlEl),
+        });
+      }
     });
 
     setExtractedElements(extracted);
+    console.log(`Extracted ${extracted.length} editable elements`);
   };
 
   // Toggle edit mode
@@ -484,10 +545,22 @@ export function OverlayCanvas({
             })}
         </div>
 
-        {/* Helper text */}
+        {/* Helper text and instructions */}
         {editMode && extractedElements.length === 0 && (
           <div className="mt-4 text-center text-sm text-gray-400">
-            <p>No editable elements detected. Switch to Edit Mode to start customizing.</p>
+            <p>No editable elements detected. The auto-tagger should run automatically.</p>
+            <p className="text-xs mt-2">Add <code className="bg-gray-700 px-1 rounded">data-editable="true"</code> to HTML elements for manual control.</p>
+          </div>
+        )}
+
+        {editMode && extractedElements.length > 0 && (
+          <div className="mt-4 p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
+            <h4 className="text-sm font-semibold text-white mb-2">📝 Edit Mode Active</h4>
+            <div className="text-xs text-gray-400 space-y-1">
+              <p>✓ {extractedElements.length} editable elements detected</p>
+              <p>💡 <strong>Tip:</strong> Add <code className="bg-gray-700 px-1 rounded text-purple-300">data-editable="true"</code> to any HTML element to make it customizable</p>
+              <p>🎯 Elements with <code className="bg-gray-700 px-1 rounded text-purple-300">data-id="your-id"</code> will use that ID for tracking</p>
+            </div>
           </div>
         )}
 
@@ -515,9 +588,19 @@ export function OverlayCanvas({
               <Card className="bg-gray-800/50 border-gray-700">
                 <div className="p-4 border-b border-gray-700">
                   <h3 className="text-lg font-semibold text-white">Element Properties</h3>
-                  <p className="text-sm text-gray-400 mt-1">
-                    Editing: <span className="text-purple-300 font-mono">{selected.tagName}</span>
-                  </p>
+                  <div className="text-sm text-gray-400 mt-1 space-y-1">
+                    <p>
+                      <span className="text-gray-500">Tag:</span> <span className="text-purple-300 font-mono">{selected.tagName}</span>
+                    </p>
+                    <p>
+                      <span className="text-gray-500">ID:</span> <span className="text-blue-300 font-mono text-xs">{selected.id}</span>
+                    </p>
+                    {selected.id.startsWith('auto-') && (
+                      <p className="text-xs text-yellow-400">
+                        ⚠️ Auto-generated ID - add <code className="bg-gray-700 px-1 rounded">data-id</code> to HTML for persistence
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="max-h-[400px] overflow-y-auto">
                   <div className="p-4 space-y-4">
