@@ -2,6 +2,9 @@ import { ThreeCanvas } from '@remotion/three';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { useMemo } from 'react';
 import * as THREE from 'three';
+import { AnimatedText } from './components/AnimatedText';
+import type { AnimationType } from './components/AnimatedText';
+import { LineAnimationConfig } from '@/types/video';
 
 interface Scene3DPerspectiveProps {
   text: string;
@@ -13,6 +16,7 @@ interface Scene3DPerspectiveProps {
   accentColor: string;
   textColor: string;
   animationSpeed: number;
+  animationConfig?: LineAnimationConfig;
 }
 
 // Glass Card Component
@@ -175,53 +179,21 @@ const Scene3D: React.FC<{
   );
 };
 
-// Text Overlay Component
+// Text Overlay Component - Now uses AnimatedText with configurable animations
 const TextOverlay: React.FC<{
   text: string;
   frame: number;
-  duration: number;
-  fps: number;
   textColor: string;
   fontFamily: string;
-  animationSpeed: number;
-}> = ({ text, frame, duration, fps, textColor, fontFamily, animationSpeed }) => {
-  // Entry animation
-  const entryProgress = spring({
-    frame,
-    fps,
-    config: {
-      damping: 100 / animationSpeed,
-      stiffness: 200 * animationSpeed,
-      mass: 1,
-    },
-  });
-
-  // Exit animation
-  const exitStartFrame = duration - fps * 0.5;
-  const exitProgress = spring({
-    frame: frame - exitStartFrame,
-    fps,
-    config: {
-      damping: 100,
-      stiffness: 300,
-    },
-  });
-
-  const scale = frame > exitStartFrame
-    ? interpolate(exitProgress, [0, 1], [1, 0.8])
-    : interpolate(entryProgress, [0, 1], [0.5, 1]);
-
-  const opacity = frame > exitStartFrame
-    ? interpolate(exitProgress, [0, 1], [1, 0])
-    : interpolate(entryProgress, [0, 1], [0, 1]);
-
-  const translateY = frame > exitStartFrame
-    ? interpolate(exitProgress, [0, 1], [0, -50])
-    : interpolate(entryProgress, [0, 1], [50, 0]);
-
-  // Split text into words
-  const words = text.split(' ');
-  const wordDelay = 3;
+  animationConfig?: LineAnimationConfig;
+}> = ({ text, frame, textColor, fontFamily, animationConfig }) => {
+  // Default animation if none provided
+  const defaultConfig = animationConfig || {
+    type: 'fadeIn',
+    unit: 'word',
+    staggerInFrames: 5,
+    durationInFrames: 30,
+  };
 
   return (
     <AbsoluteFill
@@ -234,52 +206,30 @@ const TextOverlay: React.FC<{
         zIndex: 10,
       }}
     >
-      <div
+      <AnimatedText
+        text={text}
+        animation={defaultConfig.type as AnimationType}
+        frame={frame}
+        animationConfig={{
+          unit: defaultConfig.unit,
+          staggerInFrames: defaultConfig.staggerInFrames,
+          durationInFrames: defaultConfig.durationInFrames,
+          direction: defaultConfig.direction,
+          distance: defaultConfig.distance,
+          fade: defaultConfig.fade,
+          from: defaultConfig.from,
+          to: defaultConfig.to,
+          cursor: defaultConfig.cursor,
+        }}
         style={{
-          transform: `scale(${scale}) translateY(${translateY}px)`,
-          opacity,
-          textAlign: 'center',
-          fontFamily,
-          fontSize: '72px',
+          fontSize: 72,
           fontWeight: 'bold',
-          lineHeight: 1.3,
-          display: 'flex',
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-          gap: '16px',
+          fontFamily,
+          color: textColor,
+          textShadow: '0 8px 32px rgba(0,0,0,0.8), 0 4px 16px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4)',
           maxWidth: '90%',
         }}
-      >
-        {words.map((word, i) => {
-          const wordProgress = spring({
-            frame: frame - i * wordDelay,
-            fps,
-            config: {
-              damping: 100,
-              stiffness: 200,
-            },
-          });
-
-          const wordOpacity = interpolate(wordProgress, [0, 1], [0, 1]);
-          const wordScale = interpolate(wordProgress, [0, 1], [0.8, 1]);
-
-          return (
-            <span
-              key={i}
-              style={{
-                display: 'inline-block',
-                opacity: wordOpacity,
-                transform: `scale(${wordScale})`,
-                color: textColor,
-                textShadow: '0 8px 32px rgba(0,0,0,0.8), 0 4px 16px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4)',
-                fontWeight: 'bold',
-              }}
-            >
-              {word}
-            </span>
-          );
-        })}
-      </div>
+      />
     </AbsoluteFill>
   );
 };
@@ -295,6 +245,7 @@ export const Scene3DPerspective: React.FC<Scene3DPerspectiveProps> = ({
   accentColor,
   textColor,
   animationSpeed,
+  animationConfig,
 }) => {
   const { width, height } = useVideoConfig();
 
@@ -332,15 +283,13 @@ export const Scene3DPerspective: React.FC<Scene3DPerspectiveProps> = ({
         />
       </ThreeCanvas>
 
-      {/* Text Overlay */}
+      {/* Text Overlay with configurable animations */}
       <TextOverlay
         text={text}
         frame={frame}
-        duration={duration}
-        fps={fps}
         textColor={textColor}
         fontFamily="Space Grotesk, sans-serif"
-        animationSpeed={animationSpeed}
+        animationConfig={animationConfig}
       />
     </AbsoluteFill>
   );

@@ -8,12 +8,14 @@ import { VideoAIChat } from '@/components/video-generator/VideoAIChat';
 import { JSONEditor } from '@/components/video-generator/JSONEditor';
 import { EffectsPanel } from '@/components/video-generator/EffectsPanel';
 import { AnimationPanel } from '@/components/video-generator/AnimationPanel';
+import { UITemplateSelector } from '@/components/video-generator/UITemplateSelector';
 import { ScriptLine, VideoStyle, VIDEO_FORMATS, VideoFormat } from '@/types/video';
 import { VideoJSONConfig, getAspectRatioDimensions } from '@/types/videoJSON';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Download, Play, Loader2, FileJson, Edit3 } from 'lucide-react';
+import { Download, Play, Loader2, FileJson, Edit3, ArrowLeft, Video } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import PageLayout from '@/components/PageLayout';
 import { renderMedia } from '@remotion/renderer';
 
@@ -131,17 +133,29 @@ const VideoGenerator = () => {
     <PageLayout>
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 pt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          {/* Header */}
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">
-              Video Generator
-            </h1>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
-              Create stunning animated videos with 3D effects, spring animations, and gradient text.
-              Perfect for Instagram Reels, YouTube, and social media.
-            </p>
+          {/* Back Button */}
+          <Link to="/apps" className="inline-flex items-center text-gray-500 hover:text-gray-700 mb-6 transition-colors">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Apps
+          </Link>
 
-            {/* Mode Toggle */}
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
+                <Video className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">AI Video Generator</h1>
+                <p className="text-gray-600 mt-1">
+                  Create stunning animated videos with neon glow effects, 3D camera movements, and glassmorphic UI scenes.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Mode Toggle */}
+          <div className="text-center mb-12">
             <div className="flex items-center justify-center gap-4">
               <Button
                 variant={mode === 'simple' ? 'default' : 'outline'}
@@ -279,8 +293,9 @@ const VideoGenerator = () => {
                   <JSONEditor onConfigUpdate={setJsonConfig} />
                 ) : (
                   <Tabs defaultValue="script" className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
+                    <TabsList className="grid w-full grid-cols-5">
                       <TabsTrigger value="script">Script</TabsTrigger>
+                      <TabsTrigger value="ui-templates">UI Templates</TabsTrigger>
                       <TabsTrigger value="animation">Animation</TabsTrigger>
                       <TabsTrigger value="style">Style</TabsTrigger>
                       <TabsTrigger value="effects">Effects</TabsTrigger>
@@ -290,6 +305,15 @@ const VideoGenerator = () => {
                       <ScriptEditor
                         scriptLines={scriptLines}
                         onChange={setScriptLines}
+                      />
+                    </TabsContent>
+
+                    <TabsContent value="ui-templates" className="mt-6">
+                      <UITemplateSelector
+                        onTemplateSelect={(config) => {
+                          setJsonConfig(config);
+                          setMode('json');
+                        }}
                       />
                     </TabsContent>
 

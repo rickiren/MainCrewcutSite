@@ -1,10 +1,13 @@
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig, Sequence } from 'remotion';
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { ScriptLine, VideoStyle } from '@/types/video';
 import { Scene3DPerspective } from './Scene3DPerspective';
 import { ParticleEffectScene } from './scenes/ParticleEffectScene';
 import { GlitchTransitionScene } from './scenes/GlitchTransitionScene';
 import { AnimatedText } from './components/AnimatedText';
+import { UIMockupScene } from './scenes/UIMockupScene';
 import type { AnimationType } from './components/AnimatedText';
+import { getCameraAnimation, getLineTransition } from './utils/cameraAnimations';
+import { getNeonTextStyle, getMultiColorNeonStyle } from './utils/neonText';
 
 interface VideoCompositionProps {
   scriptLines: ScriptLine[];
@@ -40,9 +43,30 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ scriptLines,
   // Render main scene content
   let mainContent: React.ReactNode;
 
-  if (style.sceneType === '3d') {
+  // Check if this line is a UI mockup scene
+  if (currentLine.sceneType === 'uiMockup' && currentLine.sceneProps) {
     mainContent = (
-      <Scene3DPerspective
+      <UIMockupScene
+        {...currentLine.sceneProps}
+        primaryColor={style.primaryColor}
+        secondaryColor={style.secondaryColor}
+        accentColor={style.accentColor}
+        fontFamily={style.fontFamily}
+        frame={framesSinceLineStart}
+      />
+    );
+  } else {
+    // Get animation config (per-line or default) - used for both 2D and 3D scenes
+    const animationConfig = currentLine.animation || style.defaultAnimation || {
+      type: 'fadeIn',
+      unit: 'word',
+      staggerInFrames: 5,
+      durationInFrames: 30,
+    };
+
+    if (style.sceneType === '3d') {
+      mainContent = (
+        <Scene3DPerspective
         text={currentLine.text}
         frame={framesSinceLineStart}
         duration={lineDurationInFrames}
@@ -52,19 +76,81 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ scriptLines,
         accentColor={style.accentColor}
         textColor={style.textColor}
         animationSpeed={style.animationSpeed}
+        animationConfig={animationConfig}
       />
     );
   } else {
-    // Get animation config (per-line or default)
-    const animationConfig = currentLine.animation || style.defaultAnimation || {
-      type: 'fadeIn',
-      unit: 'word',
-      staggerInFrames: 5,
-      durationInFrames: 30,
+    // Camera animation for continuous motion
+    const cameraConfig = style.cameraAnimation || { enabled: true, type: 'combined', intensity: 0.5 };
+    const cameraMotion = getCameraAnimation(
+      framesSinceLineStart,
+      lineDurationInFrames / fps,
+      fps,
+      {
+        type: cameraConfig.type || 'combined',
+        intensity: cameraConfig.intensity || 0.5,
+        enabled: cameraConfig.enabled !== false,
+      }
+    );
+
+    // Line transition effects
+    const transition = getLineTransition(
+      frame,
+      currentFrame - framesSinceLineStart,
+      lineDurationInFrames / fps,
+      fps,
+      0.3, // 300ms transition
+      cameraConfig.transitionType || 'zoom'
+    );
+
+    // Combine camera motion with transitions
+    const combinedTransform = {
+      scale: cameraMotion.scale * transition.scale,
+      translateX: cameraMotion.translateX + transition.translateX,
+      translateY: cameraMotion.translateY + transition.translateY,
+      rotateX: cameraMotion.rotateX + transition.rotateX,
+      rotateY: cameraMotion.rotateY + transition.rotateY,
+      rotateZ: cameraMotion.rotateZ + transition.rotateZ,
     };
 
+    // Neon text style configuration
+    const isNeon = style.textStyle === 'neon' || style.textStyle === 'neonMulti';
+    const neonStyle = isNeon && style.neonConfig
+      ? getNeonTextStyle({
+          glowColor: style.neonConfig.glowColor || style.accentColor,
+          textColor: style.textColor,
+          glowIntensity: style.neonConfig.glowIntensity || 50,
+          secondaryGlowColor: style.neonConfig.secondaryGlowColor,
+          outline: style.neonConfig.outline || true,
+        })
+      : undefined;
+
+    // Split text for multi-color neon effect
+    const textSegments = style.textStyle === 'neonMulti'
+      ? currentLine.text.split(' ').map((word, i) => ({
+          text: word,
+          glowColor: i % 2 === 0 
+            ? style.neonConfig?.glowColor || style.accentColor 
+            : style.neonConfig?.secondaryGlowColor || style.secondaryColor,
+        }))
+      : null;
+
     mainContent = (
-      <AbsoluteFill>
+      <AbsoluteFill
+        style={{
+          opacity: transition.opacity,
+          transform: `
+            scale(${combinedTransform.scale})
+            translateX(${combinedTransform.translateX}px)
+            translateY(${combinedTransform.translateY}px)
+            perspective(1000px)
+            rotateX(${combinedTransform.rotateX}deg)
+            rotateY(${combinedTransform.rotateY}deg)
+            rotateZ(${combinedTransform.rotateZ}deg)
+          `,
+          transformStyle: 'preserve-3d',
+        }}
+      >
         {style.backgroundStyle === '3d-cards' ? (
           <Background3DCards frame={framesSinceLineStart} fps={fps} colors={style} />
         ) : style.backgroundStyle === 'gradient' ? (
@@ -73,11 +159,42 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ scriptLines,
           <BackgroundSolid color={style.primaryColor} />
         )}
 
-        {/* Use AnimatedText component with per-line configuration */}
-        <Sequence from={0} durationInFrames={lineDurationInFrames}>
+        {/* Neon Multi-Color Text */}
+        {style.textStyle === 'neonMulti' && textSegments ? (
+          <AbsoluteFill
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+              gap: '20px',
+            }}
+          >
+            {textSegments.map((segment, i) => (
+              <span
+                key={i}
+                style={{
+                  fontSize: 72,
+                  fontWeight: 'bold',
+                  fontFamily: style.fontFamily,
+                  ...getNeonTextStyle({
+                    glowColor: segment.glowColor,
+                    textColor: i % 2 === 0 ? '#ffffff' : style.accentColor,
+                    glowIntensity: 50,
+                    outline: true,
+                  }),
+                }}
+              >
+                {segment.text}
+              </span>
+            ))}
+          </AbsoluteFill>
+        ) : (
+          /* Regular AnimatedText with Neon or Gradient styles */
           <AnimatedText
             text={currentLine.text}
             animation={animationConfig.type as AnimationType}
+            frame={framesSinceLineStart}
             animationConfig={{
               unit: animationConfig.unit,
               staggerInFrames: animationConfig.staggerInFrames,
@@ -94,10 +211,13 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ scriptLines,
               fontWeight: 'bold',
               fontFamily: style.fontFamily,
               color: style.textColor,
-              textShadow:
-                style.textStyle === 'gradient'
-                  ? '0 4px 10px rgba(0,0,0,0.3)'
-                  : '0 4px 20px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4)',
+              ...(neonStyle || {}),
+              ...(!neonStyle && {
+                textShadow:
+                  style.textStyle === 'gradient'
+                    ? '0 4px 10px rgba(0,0,0,0.3)'
+                    : '0 4px 20px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4)',
+              }),
             }}
             segmentStyle={
               style.textStyle === 'gradient'
@@ -110,9 +230,10 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ scriptLines,
                 : undefined
             }
           />
-        </Sequence>
+        )}
       </AbsoluteFill>
     );
+    }
   }
 
   // Apply global effects as overlays

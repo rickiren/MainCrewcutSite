@@ -12,6 +12,7 @@ import { ParticleEffectScene } from './scenes/ParticleEffectScene';
 import { GlitchTransitionScene } from './scenes/GlitchTransitionScene';
 import { NeonEffectScene } from './scenes/NeonEffectScene';
 import { ChartAnimatedScene } from './scenes/ChartAnimatedScene';
+import { UIMockupScene } from './scenes/UIMockupScene';
 
 interface JSONVideoCompositionProps {
   config: VideoJSONConfig;
@@ -91,6 +92,26 @@ function renderScene(scene: VideoScene, frameInScene: number, config: VideoJSONC
           accentColor={commonProps.accentColor}
           textColor={scene.props.textColor || '#FFFFFF'}
           animationSpeed={scene.props.animationSpeed || 1}
+        />
+      );
+
+    // ==================== UI MOCKUPS ====================
+    case 'uiMockup':
+      return (
+        <UIMockupScene
+          {...scene.props}
+          {...commonProps}
+          frame={frameInScene}
+        />
+      );
+
+    case 'glassmorphicCard':
+      // Alias for uiMockup with single card
+      return (
+        <UIMockupScene
+          {...scene.props}
+          {...commonProps}
+          frame={frameInScene}
         />
       );
 

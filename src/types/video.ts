@@ -41,7 +41,7 @@ export interface ScriptLine {
   id: string;
   text: string;
   duration: number; // in seconds
-  sceneType?: 'text' | 'textHighlight' | 'counter' | 'chart' | 'cta';
+  sceneType?: 'text' | 'textHighlight' | 'counter' | 'chart' | 'cta' | 'uiMockup';
   sceneProps?: any; // Scene-specific properties
 
   // Text animation configuration
@@ -61,6 +61,23 @@ export interface VideoStyle {
 
   // Default text animation (applies to lines without custom animation)
   defaultAnimation?: LineAnimationConfig;
+
+  // Camera animation settings
+  cameraAnimation?: {
+    enabled: boolean;
+    type: 'zoom' | 'pan' | 'rotate' | 'orbit' | 'dolly' | 'combined';
+    intensity?: number;
+    transitionType?: 'zoom' | 'slide' | 'rotate' | 'fade';
+  };
+
+  // Text style settings
+  textStyle?: 'solid' | 'gradient' | 'neon' | 'neonMulti';
+  neonConfig?: {
+    glowColor: string;
+    glowIntensity?: number;
+    secondaryGlowColor?: string;
+    outline?: boolean;
+  };
 
   // Global effects
   globalEffects?: {
