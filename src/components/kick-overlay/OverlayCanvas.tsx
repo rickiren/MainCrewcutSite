@@ -20,6 +20,7 @@ export function OverlayCanvas({
   onRemoveElement,
 }: OverlayCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [canvasScale, setCanvasScale] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -226,24 +227,23 @@ export function OverlayCanvas({
 </html>`;
   };
 
+  // Handle iframe loading for HTML templates
+  useEffect(() => {
+    if (config.htmlTemplate && iframeRef.current) {
+      const htmlContent = generateHTMLContent();
+      const iframe = iframeRef.current;
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      iframe.src = url;
+
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    }
+  }, [config.htmlTemplate, config.cssTemplate, config.canvas.width, config.canvas.height]);
+
   // If HTML template exists, render it in an iframe
   if (config.htmlTemplate) {
-    const htmlContent = generateHTMLContent();
-    const iframeRef = useRef<HTMLIFrameElement>(null);
-
-    useEffect(() => {
-      if (iframeRef.current && htmlContent) {
-        const iframe = iframeRef.current;
-        const blob = new Blob([htmlContent], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        iframe.src = url;
-        
-        return () => {
-          URL.revokeObjectURL(url);
-        };
-      }
-    }, [htmlContent]);
-
     return (
       <div ref={containerRef} className="w-full h-full min-h-[500px] flex flex-col items-center">
         {/* Canvas Info */}
