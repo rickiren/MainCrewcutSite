@@ -198,42 +198,42 @@
   </style>
 </head>
 <body>
-  <!-- Top Banner - ALL elements marked with data-editable="true" -->
-  <div class="top-banner" data-editable="true" data-id="top-banner">
+  <!-- Top Banner - Only mark leaf elements (text) as editable, not containers -->
+  <div class="top-banner">
     <div class="channel-title" data-editable="true" data-id="channel-title">
       MOTHER APPROVED NEWS
     </div>
     <div class="live-indicator" data-editable="true" data-id="live-indicator">● LIVE</div>
   </div>
 
-  <!-- Ribbon -->
-  <div class="ribbon" data-editable="true" data-id="ribbon">
+  <!-- Ribbon - Only the text is editable -->
+  <div class="ribbon">
     <div class="ribbon-text" data-editable="true" data-id="ribbon-text">On Air Now!</div>
   </div>
 
-  <!-- Webcam Frame -->
-  <div class="webcam-frame" data-editable="true" data-id="webcam-frame">
+  <!-- Webcam Frame - Only the label is editable -->
+  <div class="webcam-frame">
     <div class="webcam-inner"></div>
     <div class="webcam-label" data-editable="true" data-id="webcam-label">Your Host</div>
   </div>
 
-  <!-- Social Media Callout -->
-  <div class="social-callout" data-editable="true" data-id="social-callout">
+  <!-- Social Media Callout - Only text elements editable -->
+  <div class="social-callout">
     <div class="social-text" data-editable="true" data-id="social-text">Follow the show!</div>
     <div class="social-handle" data-editable="true" data-id="social-handle">@YourHandle</div>
   </div>
 
-  <!-- Chat Box -->
-  <div class="chat-box" data-editable="true" data-id="chat-box">
+  <!-- Chat Box - Only header editable -->
+  <div class="chat-box">
     <div class="chat-header" data-editable="true" data-id="chat-header">Live Chat</div>
   </div>
 
-  <!-- Events Panel -->
-  <div class="events-panel" data-editable="true" data-id="events-panel">
+  <!-- Events Panel - Only header editable -->
+  <div class="events-panel">
     <div class="events-header" data-editable="true" data-id="events-header">Recent Events</div>
   </div>
 
-  <!-- Bottom Bar -->
-  <div class="bottom-bar" data-editable="true" data-id="bottom-bar"></div>
+  <!-- Bottom Bar - Not editable (visual element only) -->
+  <div class="bottom-bar"></div>
 </body>
 </html>

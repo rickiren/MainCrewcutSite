@@ -326,8 +326,25 @@ export function OverlayCanvas({
       editableElements = htmlContainerRef.current.querySelectorAll('[data-editable="true"]');
     }
 
-    // Extract all data-editable elements
-    editableElements.forEach((el, index) => {
+    // Filter out parent elements that contain other editable children
+    const filteredElements: Element[] = [];
+    editableElements.forEach((el) => {
+      // Check if this element contains any other editable elements
+      const hasEditableChildren = Array.from(editableElements).some((otherEl) => {
+        return otherEl !== el && el.contains(otherEl);
+      });
+
+      // Only include elements that DON'T contain other editable elements
+      // This prevents overlapping draggable areas
+      if (!hasEditableChildren) {
+        filteredElements.push(el);
+      } else {
+        console.log(`Skipping parent element ${el.getAttribute('data-id')} - contains editable children`);
+      }
+    });
+
+    // Extract filtered elements
+    filteredElements.forEach((el, index) => {
       const htmlEl = el as HTMLElement;
       const text = htmlEl.textContent?.trim();
 
@@ -356,7 +373,7 @@ export function OverlayCanvas({
     });
 
     setExtractedElements(extracted);
-    console.log(`Extracted ${extracted.length} editable elements`);
+    console.log(`Extracted ${extracted.length} editable elements (filtered from ${editableElements.length} total)`);
   };
 
   // Toggle edit mode
@@ -495,8 +512,11 @@ export function OverlayCanvas({
 
           {/* Draggable Overlays for Edit Mode */}
           {editMode &&
-            extractedElements.map((extracted) => {
+            extractedElements.map((extracted, index) => {
               const isSelected = selectedElementId === extracted.id;
+              // Higher z-index for selected, and incrementing for others to prevent overlap issues
+              const zIndex = isSelected ? 9999 : 1000 + index;
+
               return (
                 <motion.div
                   key={extracted.id}
@@ -511,6 +531,7 @@ export function OverlayCanvas({
                     width: `${extracted.rect.width}px`,
                     height: `${extracted.rect.height}px`,
                     pointerEvents: 'auto',
+                    zIndex: zIndex,
                   }}
                   drag
                   dragMomentum={false}
