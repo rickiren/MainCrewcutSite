@@ -132,6 +132,35 @@ export const apps: App[] = [
       'Live preview with customization panel',
       'One-click export to OBS-ready HTML'
     ]
+  },
+  {
+    id: 'vibe-coder-console',
+    title: 'Vibe Coder Console',
+    description: 'Automate what you hate — instantly. Transform repetitive tasks into working n8n automation workflows with AI-powered blueprint generation.',
+    image: '/vibe-coder-console.png',
+    category: 'Productivity',
+    features: [
+      'AI-powered automation analysis',
+      'Visual workflow blueprints',
+      'n8n workflow generation',
+      'Real-time step breakdown',
+      'One-click export',
+      'Glowing vibe aesthetic'
+    ],
+    technologies: ['React', 'TypeScript', 'Claude API', 'n8n'],
+    demoUrl: '/apps/vibe-coder-console',
+    demoMetrics: [
+      { title: 'Gen Time', value: '<30s' },
+      { title: 'Workflows', value: '100+' },
+      { title: 'Services', value: '50+' },
+      { title: 'Success', value: '94%' }
+    ],
+    demoHighlights: [
+      'Natural language task description',
+      'AI breaks down automation into clear steps',
+      'Visual flowchart with glowing connections',
+      'Download working n8n workflow JSON'
+    ]
   }
 ];
 
