@@ -1,0 +1,52 @@
+name: Deploy to Firebase
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual triggering from GitHub Actions tab
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      - name: Ensure rollup native dependencies
+        run: |
+          if [ ! -d "node_modules/@rollup/rollup-linux-x64-gnu" ]; then
+            echo "Installing rollup native dependency..."
+            npm install @rollup/rollup-linux-x64-gnu@4.24.0 --save-optional || true
+          fi
+
+      - name: Build frontend
+        run: npm run build
+        env:
+          # Set Firebase Function URL for production build
+          VITE_FIREBASE_FUNCTION_URL: https://us-central1-crewcut-main.cloudfunctions.net/claude
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+          channelId: live
+          projectId: crewcut-main
+
+      - name: Deployment Summary
+        run: |
+          echo "✅ Deployment complete!"
+          echo "🌍 Site: https://crewcut-main.web.app"
+          echo "📝 Note: Firebase Functions require manual deployment with secrets"
+

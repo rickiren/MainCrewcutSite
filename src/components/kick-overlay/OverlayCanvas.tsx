@@ -1,0 +1,1113 @@
+import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { Trash2, GripVertical, Video, MessageSquare, Bell, Image, DollarSign, Users, Eye, Edit3, Eye as EyeIcon, Palette, Save, Copy } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import type { OverlayConfig, OverlayElement } from '@/types/overlay';
+import { motion } from 'framer-motion';
+
+interface OverlayCanvasProps {
+  config: OverlayConfig;
+  selectedElementId: string | null;
+  onSelectElement: (id: string | null) => void;
+  onUpdateElement: (id: string, updates: Partial<OverlayElement>) => void;
+  onRemoveElement: (id: string) => void;
+  onHTMLElementUpdate?: (elementId: string, property: string, value: string) => void;
+  onHTMLElementContentUpdate?: (elementId: string, content: string) => void;
+  selectedHTMLElement?: HTMLElement | null;
+  onEditModeChange?: (editMode: boolean) => void;
+  onExtractedElementsChange?: (elements: ExtractedHTMLElement[]) => void;
+  onSaveHTML?: (html: string, css: string) => void;
+}
+
+export interface ExtractedHTMLElement {
+  id: string;
+  element: HTMLElement;
+  tagName: string;
+  textContent: string;
+  rect: DOMRect;
+  computedStyle: CSSStyleDeclaration;
+}
+
+export interface OverlayCanvasHandle {
+  save: () => void;
+}
+
+export const OverlayCanvas = forwardRef<OverlayCanvasHandle, OverlayCanvasProps>(({
+  config,
+  selectedElementId,
+  onSelectElement,
+  onUpdateElement,
+  onRemoveElement,
+  onEditModeChange,
+  onExtractedElementsChange,
+  onSaveHTML,
+}, ref) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const htmlContainerRef = useRef<HTMLDivElement>(null);
+  const [canvasScale, setCanvasScale] = useState(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [editMode, setEditMode] = useState(false);
+  const [extractedElements, setExtractedElements] = useState<ExtractedHTMLElement[]>([]);
+  const [draggingElementId, setDraggingElementId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [resizingElementId, setResizingElementId] = useState<string | null>(null);
+  const [resizeHandle, setResizeHandle] = useState<string | null>(null);
+  const [htmlResizeStart, setHtmlResizeStart] = useState({
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    elementX: 0,
+    elementY: 0
+  });
+
+  // Calculate canvas scale to fit container
+  useEffect(() => {
+    const updateScale = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth;
+        const containerHeight = containerRef.current.clientHeight - 40; // Account for controls
+        const scaleX = containerWidth / config.canvas.width;
+        const scaleY = containerHeight / config.canvas.height;
+        setCanvasScale(Math.min(scaleX, scaleY, 1)); // Don't scale up beyond 100%
+      }
+    };
+
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, [config.canvas.width, config.canvas.height]);
+
+  // Handle element drag start
+  const handleMouseDown = (e: React.MouseEvent, element: OverlayElement) => {
+    if (e.target !== e.currentTarget && !(e.target as HTMLElement).classList.contains('drag-handle')) {
+      return;
+    }
+
+    e.stopPropagation();
+    onSelectElement(element.id);
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX,
+      y: e.clientY,
+    });
+  };
+
+  // Handle resize start
+  const handleResizeStart = (e: React.MouseEvent, element: OverlayElement) => {
+    e.stopPropagation();
+    onSelectElement(element.id);
+    setIsResizing(true);
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      width: element.size.width,
+      height: element.size.height,
+    });
+  };
+
+  // Handle mouse move for dragging and resizing
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!selectedElementId) return;
+
+      const element = config.elements.find(el => el.id === selectedElementId);
+      if (!element || !containerRef.current) return;
+
+      if (isDragging) {
+        const deltaX = e.clientX - dragStart.x;
+        const deltaY = e.clientY - dragStart.y;
+
+        const canvasWidth = config.canvas.width * canvasScale;
+        const canvasHeight = config.canvas.height * canvasScale;
+
+        const deltaXPercent = (deltaX / canvasWidth) * 100;
+        const deltaYPercent = (deltaY / canvasHeight) * 100;
+
+        const newX = Math.max(0, Math.min(100 - element.size.width, element.position.x + deltaXPercent));
+        const newY = Math.max(0, Math.min(100 - element.size.height, element.position.y + deltaYPercent));
+
+        onUpdateElement(selectedElementId, {
+          position: { x: newX, y: newY },
+        });
+
+        setDragStart({ x: e.clientX, y: e.clientY });
+      }
+
+      if (isResizing) {
+        const deltaX = e.clientX - resizeStart.x;
+        const deltaY = e.clientY - resizeStart.y;
+
+        const canvasWidth = config.canvas.width * canvasScale;
+        const canvasHeight = config.canvas.height * canvasScale;
+
+        const deltaWidthPercent = (deltaX / canvasWidth) * 100;
+        const deltaHeightPercent = (deltaY / canvasHeight) * 100;
+
+        const newWidth = Math.max(5, Math.min(100 - element.position.x, resizeStart.width + deltaWidthPercent));
+        const newHeight = Math.max(5, Math.min(100 - element.position.y, resizeStart.height + deltaHeightPercent));
+
+        onUpdateElement(selectedElementId, {
+          size: { width: newWidth, height: newHeight },
+        });
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      setIsResizing(false);
+    };
+
+    if (isDragging || isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, isResizing, selectedElementId, dragStart, resizeStart, config, canvasScale, onUpdateElement]);
+
+  // Get icon for element type
+  const getElementIcon = (type: OverlayElement['type']) => {
+    const iconClass = "w-4 h-4";
+    switch (type) {
+      case 'webcam': return <Video className={iconClass} />;
+      case 'chat': return <MessageSquare className={iconClass} />;
+      case 'alerts': return <Bell className={iconClass} />;
+      case 'image': return <Image className={iconClass} />;
+      case 'donation-goal': return <DollarSign className={iconClass} />;
+      case 'subscriber-count':
+      case 'follower-count': return <Users className={iconClass} />;
+      case 'recent-events': return <Eye className={iconClass} />;
+      default: return null;
+    }
+  };
+
+  // Apply theme-based styles to element
+  const getElementStyles = (element: OverlayElement) => {
+    const style = element.style;
+    return {
+      position: 'absolute' as const,
+      left: `${element.position.x}%`,
+      top: `${element.position.y}%`,
+      width: `${element.size.width}%`,
+      height: `${element.size.height}%`,
+      backgroundColor: style.backgroundColor || config.theme.colors.background,
+      border: `${style.borderWidth || 2}px ${style.borderStyle || 'solid'} ${style.borderColor || config.theme.colors.border}`,
+      borderRadius: `${style.borderRadius || 8}px`,
+      opacity: style.opacity || 0.9,
+      color: style.textColor || config.theme.colors.text,
+      fontSize: `${style.fontSize || 16}px`,
+      fontFamily: style.fontFamily || config.theme.fonts.primary,
+      fontWeight: style.fontWeight || 400,
+      textAlign: style.textAlign || 'center',
+      display: 'flex',
+      flexDirection: 'column' as const,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '12px',
+      cursor: 'move',
+      userSelect: 'none' as const,
+      zIndex: element.zIndex || 0,
+      boxShadow: style.shadow?.enabled
+        ? `${style.shadow.x}px ${style.shadow.y}px ${style.shadow.blur}px ${style.shadow.color}`
+        : 'none',
+    };
+  };
+
+  const canvasWidth = config.canvas.width * canvasScale;
+  const canvasHeight = config.canvas.height * canvasScale;
+
+  // Generate HTML content for iframe when HTML template is present
+  const generateHTMLContent = (): string => {
+    if (!config.htmlTemplate) return '';
+    
+    // Parse the HTML template
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(config.htmlTemplate, 'text/html');
+    
+    // Check if it's a full HTML document
+    if (doc.documentElement.tagName === 'HTML') {
+      // If additional CSS is provided, inject it into the head
+      if (config.cssTemplate) {
+        const styleEl = doc.createElement('style');
+        styleEl.textContent = config.cssTemplate;
+        if (doc.head) {
+          doc.head.appendChild(styleEl);
+        } else {
+          const head = doc.createElement('head');
+          head.appendChild(styleEl);
+          doc.documentElement.insertBefore(head, doc.documentElement.firstChild);
+        }
+      }
+      // Return the complete HTML document
+      return `<!DOCTYPE html>${doc.documentElement.outerHTML}`;
+    }
+    
+    // Otherwise, wrap body content in full HTML structure
+    const allCSS = config.cssTemplate || '';
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=${config.canvas.width}, height=${config.canvas.height}">
+  <title>Overlay Preview</title>
+  ${allCSS ? `<style>${allCSS}</style>` : ''}
+</head>
+<body>
+  ${config.htmlTemplate}
+</body>
+</html>`;
+  };
+
+  // Handle iframe loading for HTML templates (preview mode)
+  useEffect(() => {
+    if (config.htmlTemplate && iframeRef.current && !editMode) {
+      const htmlContent = generateHTMLContent();
+      const iframe = iframeRef.current;
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      iframe.src = url;
+
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    }
+  }, [config.htmlTemplate, config.cssTemplate, config.canvas.width, config.canvas.height, editMode]);
+
+  // Auto-tag common editable elements if no data-editable attributes found
+  const autoTagEditableElements = () => {
+    if (!htmlContainerRef.current) return 0;
+
+    // Common classes and selectors that should be editable
+    const commonEditableClasses = [
+      'channel-title', 'live-indicator', 'ribbon', 'ribbon-text',
+      'webcam-frame', 'webcam-label', 'social-callout', 'social-text',
+      'social-handle', 'chat-box', 'chat-header', 'events-panel',
+      'events-header', 'bottom-bar', 'top-banner', 'title', 'subtitle',
+      'header', 'footer', 'label', 'caption', 'heading'
+    ];
+
+    // Common tag names for text content
+    const commonEditableTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'button', 'a', 'span', 'label'];
+
+    let taggedCount = 0;
+
+    // Tag by common classes
+    commonEditableClasses.forEach((className) => {
+      const elements = htmlContainerRef.current?.querySelectorAll(`.${className}`);
+      elements?.forEach((el) => {
+        if (!el.hasAttribute('data-editable')) {
+          el.setAttribute('data-editable', 'true');
+          if (!el.hasAttribute('data-id')) {
+            el.setAttribute('data-id', `auto-${className}-${Date.now()}`);
+          }
+          taggedCount++;
+        }
+      });
+    });
+
+    // Tag common text elements if they have meaningful content
+    commonEditableTags.forEach((tagName) => {
+      const elements = htmlContainerRef.current?.querySelectorAll(tagName);
+      elements?.forEach((el) => {
+        const text = el.textContent?.trim();
+        // Only tag if it has text, no data-editable yet, and not too many children
+        if (text && text.length > 0 && text.length < 200 && !el.hasAttribute('data-editable') && el.children.length === 0) {
+          el.setAttribute('data-editable', 'true');
+          if (!el.hasAttribute('data-id')) {
+            el.setAttribute('data-id', `auto-${tagName}-${Date.now()}`);
+          }
+          taggedCount++;
+        }
+      });
+    });
+
+    return taggedCount;
+  };
+
+  // Extract elements from HTML when entering edit mode
+  const extractElementsFromHTML = () => {
+    if (!htmlContainerRef.current) return;
+
+    const extracted: ExtractedHTMLElement[] = [];
+
+    // First, check if there are any manually tagged data-editable elements
+    let editableElements = htmlContainerRef.current.querySelectorAll('[data-editable="true"]');
+
+    // If no manually tagged elements found, auto-tag common ones
+    if (editableElements.length === 0) {
+      const taggedCount = autoTagEditableElements();
+      console.log(`Auto-tagged ${taggedCount} elements as editable`);
+      // Re-query after auto-tagging
+      editableElements = htmlContainerRef.current.querySelectorAll('[data-editable="true"]');
+    }
+
+    // Extract ALL editable elements - don't filter out parents or overlapping elements
+    // Users can edit any element they want, even if it overlaps with others
+    editableElements.forEach((el, index) => {
+      const htmlEl = el as HTMLElement;
+      const text = htmlEl.textContent?.trim();
+
+      // Get data-id or generate one
+      const dataId = htmlEl.getAttribute('data-id') || `element-${index}-${Date.now()}`;
+
+      // Extract element info - account for canvas scale in coordinates
+      const rect = htmlEl.getBoundingClientRect();
+      const containerRect = htmlContainerRef.current?.getBoundingClientRect();
+
+      if (rect && containerRect) {
+        // Calculate position relative to the container, accounting for scale
+        // The container has a transform scale applied, so we need to account for that
+        const relativeX = (rect.left - containerRect.left) / canvasScale;
+        const relativeY = (rect.top - containerRect.top) / canvasScale;
+        const relativeWidth = rect.width / canvasScale;
+        const relativeHeight = rect.height / canvasScale;
+
+        extracted.push({
+          id: dataId,
+          element: htmlEl,
+          tagName: htmlEl.tagName.toLowerCase(),
+          textContent: text || '',
+          rect: new DOMRect(
+            relativeX,
+            relativeY,
+            relativeWidth,
+            relativeHeight
+          ),
+          computedStyle: window.getComputedStyle(htmlEl),
+        });
+      }
+    });
+
+    setExtractedElements(extracted);
+    onExtractedElementsChange?.(extracted);
+    console.log(`Extracted ${extracted.length} editable elements`);
+  };
+
+  // Save modified HTML and CSS
+  const saveModifiedHTML = () => {
+    if (!htmlContainerRef.current || !config.htmlTemplate) return;
+
+    // Clone the container to avoid modifying the original
+    const container = htmlContainerRef.current.cloneNode(true) as HTMLElement;
+    
+    // Remove any temporary attributes we might have added
+    container.querySelectorAll('[data-temp-id]').forEach(el => {
+      el.removeAttribute('data-temp-id');
+    });
+    
+    // Extract the HTML content with all inline styles preserved
+    const modifiedHTML = container.innerHTML;
+    
+    // Keep the original CSS - inline styles are preserved in the HTML
+    const css = config.cssTemplate || '';
+
+    // Call the save callback
+    onSaveHTML?.(modifiedHTML, css);
+  };
+
+  // Expose save function via ref
+  useImperativeHandle(ref, () => ({
+    save: saveModifiedHTML,
+  }));
+
+  // Toggle edit mode
+  const toggleEditMode = () => {
+    const newEditMode = !editMode;
+    
+    if (editMode && !newEditMode) {
+      // Exiting edit mode - save changes before switching
+      saveModifiedHTML();
+    }
+    
+    setEditMode(newEditMode);
+    onEditModeChange?.(newEditMode);
+    if (!editMode) {
+      // Entering edit mode - extract elements after a short delay to let HTML render
+      setTimeout(() => {
+        extractElementsFromHTML();
+      }, 100);
+    } else {
+      // Exiting edit mode - clear extracted elements
+      setExtractedElements([]);
+      onExtractedElementsChange?.([]);
+      onSelectElement(null);
+    }
+  };
+
+  // Handle dragging extracted HTML elements with proper coordinate normalization
+  // KEY FIX for nested elements: always calculate relative to current screen position
+  const handleHTMLElementDragStart = (extractedId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!canvasContainerRef.current) return;
+
+    // Get the canvas bounding rect for coordinate conversion
+    const canvasRect = canvasContainerRef.current.getBoundingClientRect();
+
+    // Get the extracted element
+    const extracted = extractedElements.find((el) => el.id === extractedId);
+    if (!extracted || !extracted.element) return;
+
+    // Get the element's CURRENT screen position (includes all parent transforms)
+    // This is critical for nested elements!
+    const elementRect = extracted.element.getBoundingClientRect();
+
+    // Calculate mouse position relative to canvas in canvas coordinates (1920x1080 space)
+    const mouseCanvasX = (e.clientX - canvasRect.left) / canvasScale;
+    const mouseCanvasY = (e.clientY - canvasRect.top) / canvasScale;
+
+    // Calculate the element's current position in canvas coordinates
+    const elementCanvasX = (elementRect.left - canvasRect.left) / canvasScale;
+    const elementCanvasY = (elementRect.top - canvasRect.top) / canvasScale;
+
+    // Store the offset from the element's top-left corner to the mouse
+    // This keeps the grab point consistent during the drag
+    const offsetX = mouseCanvasX - elementCanvasX;
+    const offsetY = mouseCanvasY - elementCanvasY;
+
+    setDraggingElementId(extractedId);
+    setDragOffset({ x: offsetX, y: offsetY });
+    onSelectElement(extractedId);
+  };
+
+  const handleHTMLElementDragMove = (e: MouseEvent) => {
+    if (!draggingElementId || !canvasContainerRef.current) return;
+
+    const extracted = extractedElements.find((el) => el.id === draggingElementId);
+    if (!extracted || !extracted.element) return;
+
+    // Get the canvas bounding rect for coordinate conversion
+    const canvasRect = canvasContainerRef.current.getBoundingClientRect();
+
+    // Calculate mouse position relative to canvas in canvas coordinates (1920x1080 space)
+    const mouseCanvasX = (e.clientX - canvasRect.left) / canvasScale;
+    const mouseCanvasY = (e.clientY - canvasRect.top) / canvasScale;
+
+    // Calculate where we WANT the element to be (accounting for grab offset)
+    const desiredCanvasX = mouseCanvasX - dragOffset.x;
+    const desiredCanvasY = mouseCanvasY - dragOffset.y;
+
+    // Get the element's CURRENT screen position (includes all parent transforms and positioning)
+    // This is the KEY FIX for nested elements - we calculate from where it actually is NOW
+    const currentElementRect = extracted.element.getBoundingClientRect();
+    const currentCanvasX = (currentElementRect.left - canvasRect.left) / canvasScale;
+    const currentCanvasY = (currentElementRect.top - canvasRect.top) / canvasScale;
+
+    // Calculate the delta we need to move from current position to desired position
+    const deltaX = desiredCanvasX - currentCanvasX;
+    const deltaY = desiredCanvasY - currentCanvasY;
+
+    // Get the element's existing transform values
+    const currentTransform = extracted.element.style.transform || '';
+    const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+
+    let currentTransformX = 0;
+    let currentTransformY = 0;
+    if (translateMatch) {
+      currentTransformX = parseFloat(translateMatch[1].trim()) || 0;
+      currentTransformY = parseFloat(translateMatch[2].trim()) || 0;
+    }
+
+    // Apply the delta to the existing transform
+    // This works for both top-level and nested elements because we're always
+    // calculating the delta from the element's actual current screen position
+    extracted.element.style.position = 'relative';
+    extracted.element.style.transform = `translate(${currentTransformX + deltaX}px, ${currentTransformY + deltaY}px)`;
+
+    // Force a re-render to update overlay positions
+    setExtractedElements((prev) => [...prev]);
+  };
+
+  const handleHTMLElementDragEnd = () => {
+    setDraggingElementId(null);
+    setDragOffset({ x: 0, y: 0 });
+  };
+
+  // Handle deleting an HTML element
+  const handleDeleteHTMLElement = (extractedId: string) => {
+    const extracted = extractedElements.find((el) => el.id === extractedId);
+    if (!extracted || !extracted.element) return;
+
+    // Remove the element from the DOM
+    extracted.element.remove();
+
+    // Update the extracted elements state
+    setExtractedElements((prev) => prev.filter((el) => el.id !== extractedId));
+    onExtractedElementsChange?.(extractedElements.filter((el) => el.id !== extractedId));
+
+    // Clear selection if this element was selected
+    if (selectedElementId === extractedId) {
+      onSelectElement(null);
+    }
+  };
+
+  // Handle duplicating an HTML element
+  const handleDuplicateHTMLElement = (extractedId: string) => {
+    const extracted = extractedElements.find((el) => el.id === extractedId);
+    if (!extracted || !extracted.element || !htmlContainerRef.current) return;
+
+    // Clone the DOM element
+    const clonedElement = extracted.element.cloneNode(true) as HTMLElement;
+
+    // Generate a unique ID for the clone
+    const newId = `${extractedId}-copy-${Date.now()}`;
+    clonedElement.setAttribute('data-id', newId);
+    clonedElement.setAttribute('data-editable', 'true');
+
+    // Get the current transform of the original element
+    const currentTransform = extracted.element.style.transform || '';
+    const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+
+    let currentX = 0;
+    let currentY = 0;
+    if (translateMatch) {
+      currentX = parseFloat(translateMatch[1].trim()) || 0;
+      currentY = parseFloat(translateMatch[2].trim()) || 0;
+    }
+
+    // Offset the duplicate by 20px so it's visible and not directly on top
+    const offsetX = currentX + 20;
+    const offsetY = currentY + 20;
+
+    clonedElement.style.position = 'relative';
+    clonedElement.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+
+    // Insert the cloned element right after the original in the DOM
+    if (extracted.element.parentNode) {
+      extracted.element.parentNode.insertBefore(clonedElement, extracted.element.nextSibling);
+    } else {
+      htmlContainerRef.current.appendChild(clonedElement);
+    }
+
+    // Get the bounding rect for the new element
+    const elementRect = clonedElement.getBoundingClientRect();
+    const canvasRect = htmlContainerRef.current.getBoundingClientRect();
+
+    // Calculate position relative to the container, accounting for scale
+    const relativeX = (elementRect.left - canvasRect.left) / canvasScale;
+    const relativeY = (elementRect.top - canvasRect.top) / canvasScale;
+    const relativeWidth = elementRect.width / canvasScale;
+    const relativeHeight = elementRect.height / canvasScale;
+
+    // Create a new extracted element entry
+    const newExtractedElement: ExtractedHTMLElement = {
+      id: newId,
+      element: clonedElement,
+      tagName: clonedElement.tagName.toLowerCase(),
+      textContent: clonedElement.textContent?.trim() || '',
+      rect: new DOMRect(relativeX, relativeY, relativeWidth, relativeHeight),
+      computedStyle: window.getComputedStyle(clonedElement),
+    };
+
+    // Update the extracted elements state
+    setExtractedElements((prev) => [...prev, newExtractedElement]);
+    onExtractedElementsChange?.([...extractedElements, newExtractedElement]);
+
+    // Select the newly duplicated element
+    onSelectElement(newId);
+  };
+
+  // Handle resizing HTML elements
+  const handleHTMLElementResizeStart = (extractedId: string, handle: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!canvasContainerRef.current) return;
+
+    const extracted = extractedElements.find((el) => el.id === extractedId);
+    if (!extracted || !extracted.element) return;
+
+    // Get canvas and element rectangles
+    const canvasRect = canvasContainerRef.current.getBoundingClientRect();
+    const elementRect = extracted.element.getBoundingClientRect();
+
+    // Store initial state
+    setResizingElementId(extractedId);
+    setResizeHandle(handle);
+    setHtmlResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      width: elementRect.width / canvasScale,
+      height: elementRect.height / canvasScale,
+      elementX: (elementRect.left - canvasRect.left) / canvasScale,
+      elementY: (elementRect.top - canvasRect.top) / canvasScale,
+    });
+    onSelectElement(extractedId);
+  };
+
+  const handleHTMLElementResizeMove = (e: MouseEvent) => {
+    if (!resizingElementId || !resizeHandle || !canvasContainerRef.current) return;
+
+    const extracted = extractedElements.find((el) => el.id === resizingElementId);
+    if (!extracted || !extracted.element) return;
+
+    // Calculate mouse delta in canvas coordinates
+    const deltaX = (e.clientX - htmlResizeStart.x) / canvasScale;
+    const deltaY = (e.clientY - htmlResizeStart.y) / canvasScale;
+
+    // Get current transform
+    const currentTransform = extracted.element.style.transform || '';
+    const translateMatch = currentTransform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+    let currentTransformX = 0;
+    let currentTransformY = 0;
+    if (translateMatch) {
+      currentTransformX = parseFloat(translateMatch[1].trim()) || 0;
+      currentTransformY = parseFloat(translateMatch[2].trim()) || 0;
+    }
+
+    let newWidth = htmlResizeStart.width;
+    let newHeight = htmlResizeStart.height;
+    let newTransformX = currentTransformX;
+    let newTransformY = currentTransformY;
+
+    // Calculate new dimensions based on which handle is being dragged
+    switch (resizeHandle) {
+      case 'nw': // Top-left corner
+        newWidth = Math.max(20, htmlResizeStart.width - deltaX);
+        newHeight = Math.max(20, htmlResizeStart.height - deltaY);
+        newTransformX = currentTransformX + (htmlResizeStart.width - newWidth);
+        newTransformY = currentTransformY + (htmlResizeStart.height - newHeight);
+        break;
+      case 'ne': // Top-right corner
+        newWidth = Math.max(20, htmlResizeStart.width + deltaX);
+        newHeight = Math.max(20, htmlResizeStart.height - deltaY);
+        newTransformY = currentTransformY + (htmlResizeStart.height - newHeight);
+        break;
+      case 'sw': // Bottom-left corner
+        newWidth = Math.max(20, htmlResizeStart.width - deltaX);
+        newHeight = Math.max(20, htmlResizeStart.height + deltaY);
+        newTransformX = currentTransformX + (htmlResizeStart.width - newWidth);
+        break;
+      case 'se': // Bottom-right corner
+        newWidth = Math.max(20, htmlResizeStart.width + deltaX);
+        newHeight = Math.max(20, htmlResizeStart.height + deltaY);
+        break;
+      case 'n': // Top edge
+        newHeight = Math.max(20, htmlResizeStart.height - deltaY);
+        newTransformY = currentTransformY + (htmlResizeStart.height - newHeight);
+        break;
+      case 's': // Bottom edge
+        newHeight = Math.max(20, htmlResizeStart.height + deltaY);
+        break;
+      case 'w': // Left edge
+        newWidth = Math.max(20, htmlResizeStart.width - deltaX);
+        newTransformX = currentTransformX + (htmlResizeStart.width - newWidth);
+        break;
+      case 'e': // Right edge
+        newWidth = Math.max(20, htmlResizeStart.width + deltaX);
+        break;
+    }
+
+    // Apply new dimensions and position
+    extracted.element.style.width = `${newWidth}px`;
+    extracted.element.style.height = `${newHeight}px`;
+    extracted.element.style.position = 'relative';
+    extracted.element.style.transform = `translate(${newTransformX}px, ${newTransformY}px)`;
+
+    // Force re-render to update overlays
+    setExtractedElements((prev) => [...prev]);
+  };
+
+  const handleHTMLElementResizeEnd = () => {
+    setResizingElementId(null);
+    setResizeHandle(null);
+  };
+
+  // Set up global mouse event listeners for dragging
+  useEffect(() => {
+    if (draggingElementId) {
+      document.addEventListener('mousemove', handleHTMLElementDragMove);
+      document.addEventListener('mouseup', handleHTMLElementDragEnd);
+
+      return () => {
+        document.removeEventListener('mousemove', handleHTMLElementDragMove);
+        document.removeEventListener('mouseup', handleHTMLElementDragEnd);
+      };
+    }
+  }, [draggingElementId, extractedElements, dragOffset, canvasScale]);
+
+  // Set up global mouse event listeners for resizing
+  useEffect(() => {
+    if (resizingElementId) {
+      document.addEventListener('mousemove', handleHTMLElementResizeMove);
+      document.addEventListener('mouseup', handleHTMLElementResizeEnd);
+
+      return () => {
+        document.removeEventListener('mousemove', handleHTMLElementResizeMove);
+        document.removeEventListener('mouseup', handleHTMLElementResizeEnd);
+      };
+    }
+  }, [resizingElementId, resizeHandle, htmlResizeStart, extractedElements, canvasScale]);
+
+  // Set up keyboard event listeners for delete and duplicate
+  useEffect(() => {
+    if (!editMode || !selectedElementId) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only process if we have a selected HTML element
+      const isHTMLElement = extractedElements.some(el => el.id === selectedElementId);
+      if (!isHTMLElement) return;
+
+      // Duplicate: Ctrl+D (Windows/Linux) or Cmd+D (Mac)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        e.preventDefault();
+        handleDuplicateHTMLElement(selectedElementId);
+        return;
+      }
+
+      // Delete: Delete or Backspace key
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        handleDeleteHTMLElement(selectedElementId);
+        return;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [editMode, selectedElementId, extractedElements]);
+
+  // If HTML template exists, render it with edit mode support
+  if (config.htmlTemplate) {
+    return (
+      <div ref={containerRef} className="w-full flex flex-col">
+        {/* Canvas Info */}
+        <div className="w-full flex items-center justify-between mb-3 text-sm text-gray-400">
+          <div>
+            Resolution: {config.canvas.width} × {config.canvas.height}px
+            {canvasScale < 1 && ` (${Math.round(canvasScale * 100)}% scale)`}
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="px-2 py-1 bg-purple-600/20 text-purple-300 rounded text-xs">HTML Template Mode</span>
+            {editMode && (
+              <span className="px-2 py-1 bg-green-600/20 text-green-300 rounded text-xs">
+                {extractedElements.length} Editable Elements
+              </span>
+            )}
+            {editMode && (
+              <Button
+                onClick={saveModifiedHTML}
+                size="sm"
+                variant="outline"
+                className="bg-blue-600/20 border-blue-500 text-blue-200 hover:bg-blue-600/30"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                Save Changes
+              </Button>
+            )}
+            <Button
+              onClick={toggleEditMode}
+              size="sm"
+              variant={editMode ? 'default' : 'outline'}
+              className={editMode ? 'bg-green-600 hover:bg-green-700' : 'border-gray-600'}
+            >
+              {editMode ? (
+                <>
+                  <EyeIcon className="w-4 h-4 mr-2" />
+                  Preview Mode
+                </>
+              ) : (
+                <>
+                  <Edit3 className="w-4 h-4 mr-2" />
+                  Edit Mode
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {/* HTML Content */}
+        <div className="flex justify-center">
+          <div
+            ref={canvasContainerRef}
+            className="relative bg-gray-900 border-2 border-gray-700 rounded-lg shadow-2xl overflow-hidden"
+            style={{
+              width: `${canvasWidth}px`,
+              height: `${canvasHeight}px`,
+            }}
+          >
+          {/* Preview Mode: Show in iframe */}
+          {!editMode && (
+            <iframe
+              ref={iframeRef}
+              className="border-0"
+              style={{
+                width: `${config.canvas.width}px`,
+                height: `${config.canvas.height}px`,
+                transform: `scale(${canvasScale})`,
+                transformOrigin: 'top left',
+              }}
+              title="Overlay Preview"
+            />
+          )}
+
+          {/* Edit Mode: Show as HTML with draggable overlays */}
+          {editMode && (
+            <div
+              ref={htmlContainerRef}
+              className="w-full h-full relative overflow-auto"
+              style={{
+                transform: `scale(${canvasScale})`,
+                transformOrigin: 'top left',
+                width: `${config.canvas.width}px`,
+                height: `${config.canvas.height}px`,
+              }}
+              dangerouslySetInnerHTML={{
+                __html: `<style>${config.cssTemplate || ''}</style>${config.htmlTemplate}`,
+              }}
+            />
+          )}
+
+          {/* Draggable Overlays for Edit Mode */}
+          {editMode &&
+            extractedElements.map((extracted, index) => {
+              const isSelected = selectedElementId === extracted.id;
+              const isDragging = draggingElementId === extracted.id;
+              // Higher z-index for selected, and incrementing for others to prevent overlap issues
+              const zIndex = isSelected ? 9999 : 1000 + index;
+
+              // KEY FIX for nested elements: Always get the element's CURRENT screen position
+              // This accounts for all parent transforms and positioning
+              if (!extracted.element || !canvasContainerRef.current) {
+                return null;
+              }
+
+              const elementRect = extracted.element.getBoundingClientRect();
+              const canvasRect = canvasContainerRef.current.getBoundingClientRect();
+
+              // Calculate overlay position based on element's actual current screen position
+              // This works correctly for both top-level and nested elements
+              const overlayLeft = elementRect.left - canvasRect.left;
+              const overlayTop = elementRect.top - canvasRect.top;
+              const overlayWidth = elementRect.width;
+              const overlayHeight = elementRect.height;
+
+              return (
+                <div
+                  key={extracted.id}
+                  className={`absolute border-2 cursor-move transition-colors ${
+                    isSelected
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-green-500 bg-green-500/5 hover:bg-green-500/10'
+                  } ${isDragging ? 'opacity-80' : 'opacity-100'}`}
+                  style={{
+                    left: `${overlayLeft}px`,
+                    top: `${overlayTop}px`,
+                    width: `${overlayWidth}px`,
+                    height: `${overlayHeight}px`,
+                    pointerEvents: 'auto',
+                    zIndex: zIndex,
+                  }}
+                  onMouseDown={(e) => {
+                    // Don't start drag if clicking on action buttons or resize handles
+                    if ((e.target as HTMLElement).closest('.action-button') ||
+                        (e.target as HTMLElement).closest('.resize-handle')) {
+                      return;
+                    }
+                    handleHTMLElementDragStart(extracted.id, e);
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectElement(extracted.id);
+                  }}
+                >
+                  {/* Selection indicator with action buttons */}
+                  {isSelected && (
+                    <div className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap flex items-center gap-2 z-10">
+                      <GripVertical className="w-3 h-3" />
+                      <span>
+                        {extracted.tagName}: "{extracted.textContent.substring(0, 20)}..."
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDuplicateHTMLElement(extracted.id);
+                        }}
+                        className="action-button h-4 w-4 p-0 ml-1 hover:bg-green-500/30"
+                        title="Duplicate (Ctrl+D)"
+                      >
+                        <Copy className="w-3 h-3 text-green-300 hover:text-green-100" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteHTMLElement(extracted.id);
+                        }}
+                        className="action-button h-4 w-4 p-0 hover:bg-red-500/30"
+                        title="Delete (Del)"
+                      >
+                        <Trash2 className="w-3 h-3 text-red-300 hover:text-red-100" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Helper text for non-selected elements */}
+                  {!isSelected && (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                      <span className="text-xs text-green-600 font-medium bg-white/90 px-2 py-1 rounded">
+                        Click to select & drag
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Resize handles - only show when selected */}
+                  {isSelected && (
+                    <>
+                      {/* Corner handles */}
+                      <div
+                        className="resize-handle absolute -top-1 -left-1 w-3 h-3 bg-blue-500 border border-white rounded-sm cursor-nwse-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 'nw', e)}
+                        title="Resize top-left"
+                      />
+                      <div
+                        className="resize-handle absolute -top-1 -right-1 w-3 h-3 bg-blue-500 border border-white rounded-sm cursor-nesw-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 'ne', e)}
+                        title="Resize top-right"
+                      />
+                      <div
+                        className="resize-handle absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 border border-white rounded-sm cursor-nesw-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 'sw', e)}
+                        title="Resize bottom-left"
+                      />
+                      <div
+                        className="resize-handle absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 border border-white rounded-sm cursor-nwse-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 'se', e)}
+                        title="Resize bottom-right"
+                      />
+
+                      {/* Edge handles */}
+                      <div
+                        className="resize-handle absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-2 bg-blue-500 border border-white rounded-sm cursor-ns-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 'n', e)}
+                        title="Resize top"
+                      />
+                      <div
+                        className="resize-handle absolute -bottom-1 left-1/2 -translate-x-1/2 w-3 h-2 bg-blue-500 border border-white rounded-sm cursor-ns-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 's', e)}
+                        title="Resize bottom"
+                      />
+                      <div
+                        className="resize-handle absolute top-1/2 -translate-y-1/2 -left-1 w-2 h-3 bg-blue-500 border border-white rounded-sm cursor-ew-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 'w', e)}
+                        title="Resize left"
+                      />
+                      <div
+                        className="resize-handle absolute top-1/2 -translate-y-1/2 -right-1 w-2 h-3 bg-blue-500 border border-white rounded-sm cursor-ew-resize hover:scale-125 transition-transform"
+                        onMouseDown={(e) => handleHTMLElementResizeStart(extracted.id, 'e', e)}
+                        title="Resize right"
+                      />
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Default element-based rendering
+  return (
+    <div ref={containerRef} className="w-full h-full min-h-[500px] flex flex-col items-center">
+      {/* Canvas Info */}
+      <div className="w-full flex items-center justify-between mb-3 text-sm text-gray-400">
+        <div>
+          Resolution: {config.canvas.width} × {config.canvas.height}px
+          {canvasScale < 1 && ` (${Math.round(canvasScale * 100)}% scale)`}
+        </div>
+        <div>
+          Elements: {config.elements.length}
+        </div>
+      </div>
+
+      {/* Canvas */}
+      <div
+        className="relative bg-gray-900 border-2 border-gray-700 rounded-lg shadow-2xl"
+        style={{
+          width: `${canvasWidth}px`,
+          height: `${canvasHeight}px`,
+          backgroundColor: config.canvas.backgroundColor,
+          backgroundImage: config.canvas.backgroundImage ? `url(${config.canvas.backgroundImage})` : undefined,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+        onClick={() => onSelectElement(null)}
+      >
+        {config.elements.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center text-gray-500">
+              <p className="text-lg font-medium">Your overlay canvas is empty</p>
+              <p className="text-sm mt-2">Add elements from the Elements panel →</p>
+            </div>
+          </div>
+        )}
+
+        {/* Render elements */}
+        {config.elements.map((element) => {
+          const isSelected = element.id === selectedElementId;
+          return (
+            <motion.div
+              key={element.id}
+              style={getElementStyles(element)}
+              onMouseDown={(e) => handleMouseDown(e, element)}
+              className={`overlay-element ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.2 }}
+            >
+              {/* Drag handle */}
+              {isSelected && (
+                <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-1 bg-blue-500/20 backdrop-blur-sm rounded-t-lg drag-handle">
+                  <div className="flex items-center gap-1 text-xs text-white">
+                    <GripVertical className="w-3 h-3" />
+                    {element.label}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveElement(element.id);
+                    }}
+                    className="h-5 w-5 p-0 hover:bg-red-500/30"
+                  >
+                    <Trash2 className="w-3 h-3 text-red-400" />
+                  </Button>
+                </div>
+              )}
+
+              {/* Element content */}
+              <div className="flex flex-col items-center justify-center gap-2 pointer-events-none">
+                {getElementIcon(element.type)}
+                <span className="font-medium">{element.content || element.label}</span>
+              </div>
+
+              {/* Resize handle */}
+              {isSelected && (
+                <div
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-blue-500 rounded-tl cursor-nwse-resize"
+                  onMouseDown={(e) => handleResizeStart(e, element)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              )}
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
