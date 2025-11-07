@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import PageLayout from '@/components/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,6 +16,7 @@ export default function VibeCoderConsole() {
   const [loading, setLoading] = useState(false);
   const [blueprint, setBlueprint] = useState<AutomationBlueprint | null>(null);
   const [progress, setProgress] = useState<WorkflowGenerationProgress | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const generateBlueprint = async () => {
     if (!task.trim()) return;
@@ -43,7 +44,11 @@ export default function VibeCoderConsole() {
     }
   };
 
-  const downloadWorkflow = () => {
+  const handleTaskChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setTask(e.target.value);
+  }, []);
+
+  const downloadWorkflow = useCallback(() => {
     if (!blueprint) return;
 
     const dataStr = JSON.stringify(blueprint.workflow, null, 2);
@@ -55,9 +60,9 @@ export default function VibeCoderConsole() {
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
     linkElement.click();
-  };
+  }, [blueprint]);
 
-  const getStageInfo = (stage: string) => {
+  const getStageInfo = useCallback((stage: string) => {
     const stages: { [key: string]: { icon: string; color: string } } = {
       decomposition: { icon: '🧩', color: 'text-blue-400' },
       mapping: { icon: '🗺️', color: 'text-green-400' },
@@ -67,9 +72,9 @@ export default function VibeCoderConsole() {
       complete: { icon: '✅', color: 'text-green-400' }
     };
     return stages[stage] || { icon: '⏳', color: 'text-gray-400' };
-  };
+  }, []);
 
-  const getTypeColor = (type: string) => {
+  const getTypeColor = useCallback((type: string) => {
     const colors: { [key: string]: string } = {
       'Trigger': 'bg-green-500/20 border-green-500 text-green-400',
       'Process': 'bg-blue-500/20 border-blue-500 text-blue-400',
@@ -79,7 +84,7 @@ export default function VibeCoderConsole() {
       'Error Handler': 'bg-red-500/20 border-red-500 text-red-400'
     };
     return colors[type] || 'bg-gray-500/20 border-gray-500 text-gray-400';
-  };
+  }, []);
 
   return (
     <PageLayout>
@@ -102,14 +107,14 @@ export default function VibeCoderConsole() {
           {/* Hero Section */}
           <div className="text-center mb-12">
             <h1 className="text-6xl md:text-8xl font-black mb-4 relative inline-block">
-              <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 text-transparent bg-clip-text animate-pulse">
+              <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 text-transparent bg-clip-text">
                 VIBE CODER
               </span>
               <br />
-              <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 text-transparent bg-clip-text animate-pulse delay-300">
+              <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 text-transparent bg-clip-text">
                 CONSOLE
               </span>
-              <div className="absolute inset-0 blur-2xl opacity-50">
+              <div className="absolute inset-0 blur-2xl opacity-30 pointer-events-none -z-10">
                 <span className="text-purple-500">VIBE CODER CONSOLE</span>
               </div>
             </h1>
@@ -129,8 +134,9 @@ export default function VibeCoderConsole() {
                   Describe your repetitive task:
                 </label>
                 <Textarea
+                  ref={textareaRef}
                   value={task}
-                  onChange={(e) => setTask(e.target.value)}
+                  onChange={handleTaskChange}
                   placeholder="e.g., Every Friday I summarize our Slack conversations and email my team a report."
                   className="min-h-32 bg-gray-800/50 border-purple-500/30 text-white placeholder:text-gray-500 focus:border-purple-400 focus:ring-purple-400/50 text-lg resize-none"
                 />
