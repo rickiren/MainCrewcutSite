@@ -22,10 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-
-# LinkedIn automation
+path/to/bigfile
+<<<<<<< Updated upstream
 .env
-storageState.json
-.data/
-data/
-bun.lockb
+.env
+=======
+.env
+>>>>>>> Stashed changes
