@@ -26,6 +26,7 @@ import BlogPostDetail from "./pages/BlogPostDetail";
 import VideoGenerator from "./pages/VideoGenerator";
 import KickOverlayGenerator from "./pages/KickOverlayGenerator";
 import KickStream from "./pages/KickStream";
+import VibeCoderConsole from "./pages/VibeCoderConsole";
 
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());
@@ -56,6 +57,7 @@ const App = () => {
             <Route path="/blog/:slug" element={<BlogPostDetail />} />
             <Route path="/video-generator" element={<VideoGenerator />} />
             <Route path="/apps/kick-overlay-generator" element={<KickOverlayGenerator />} />
+            <Route path="/apps/vibe-coder-console" element={<VibeCoderConsole />} />
             <Route path="/kick-stream" element={<KickStream />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
