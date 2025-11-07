@@ -18,10 +18,15 @@ import About from "./pages/About";
 import Apps from "./pages/Apps";
 import AppDetail from "./pages/AppDetail";
 import WritingEditor from "./pages/WritingEditor";
+import AILogisticsOptimizer2 from "./pages/AILogisticsOptimizer2";
 import Careers from "./pages/Careers";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Blog from "./pages/Blog";
 import BlogPostDetail from "./pages/BlogPostDetail";
+import VideoGenerator from "./pages/VideoGenerator";
+import KickOverlayGenerator from "./pages/KickOverlayGenerator";
+import KickStream from "./pages/KickStream";
+import VibeCoderConsole from "./pages/VibeCoderConsole";
 
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());
@@ -45,10 +50,15 @@ const App = () => {
             <Route path="/apps" element={<Apps />} />
             <Route path="/apps/:appId" element={<AppDetail />} />
             <Route path="/apps/writing-editor" element={<WritingEditor />} />
+            <Route path="/apps/ai-logistics-optimizer-2" element={<AILogisticsOptimizer2 />} />
             <Route path="/careers" element={<Careers />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:slug" element={<BlogPostDetail />} />
+            <Route path="/video-generator" element={<VideoGenerator />} />
+            <Route path="/apps/kick-overlay-generator" element={<KickOverlayGenerator />} />
+            <Route path="/kick-stream" element={<KickStream />} />
+            <Route path="/apps/vibe-coder-console" element={<VibeCoderConsole />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
